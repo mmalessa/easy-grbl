@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../services/svg_path_parser.dart';
 import '../../services/svg_path_model.dart';
-import 'dart:ui' as ui;
 import '../../widgets/svg_paths_painter.dart';
-
-
 
 class SvgViewerScreen extends StatefulWidget {
   final String? svgContent;
@@ -18,16 +14,17 @@ class SvgViewerScreen extends StatefulWidget {
 
 class _SvgViewerScreenState extends State<SvgViewerScreen> {
   late List<SvgPathModel> paths;
+  late Rect viewBox;
 
   @override
   void initState() {
     super.initState();
-    paths = (widget.svgContent != null
-        ? SvgPathParser.extractPaths(widget.svgContent!)
-        : SvgPathParser.extractPaths(
-        '<svg><path d="M 10 10 L 190 10 L 190 190 L 10 190 Z"/></svg>'))
-        .map((d) => SvgPathModel(d: d))
-        .toList();
+
+    final svgContent = widget.svgContent ??
+        '<svg viewBox="0 0 100 100"><path id="default" d="M 10 10 L 90 10 L 90 90 L 10 90 Z"/></svg>';
+
+    paths = SvgPathParser.extractPaths(svgContent);
+    viewBox = SvgPathParser.extractViewBox(svgContent);
   }
 
   void toggleSelection(int index) {
@@ -46,9 +43,12 @@ class _SvgViewerScreenState extends State<SvgViewerScreen> {
           Expanded(
             flex: 2,
             child: Container(
-              color: Colors.white, // tło canvas
+              color: Colors.white,
               child: CustomPaint(
-                painter: SvgPathsPainter(paths),
+                painter: SvgPathsPainter(
+                  paths: paths,
+                  viewBox: viewBox,
+                ),
                 child: Container(),
               ),
             ),
@@ -62,7 +62,7 @@ class _SvgViewerScreenState extends State<SvgViewerScreen> {
               itemBuilder: (context, index) {
                 final path = paths[index];
                 return ListTile(
-                  title: Text('Path ${index + 1}: ${path.d}'),
+                  title: Text('Path ${index + 1}: ${path.id}'), // id zamiast d
                   tileColor: path.selected ? Colors.green[200] : null,
                   onTap: () => toggleSelection(index),
                 );
