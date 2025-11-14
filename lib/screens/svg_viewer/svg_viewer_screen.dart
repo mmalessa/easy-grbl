@@ -62,7 +62,7 @@ class _SvgViewerScreenState extends State<SvgViewerScreen> {
               itemBuilder: (context, index) {
                 final path = paths[index];
                 return ListTile(
-                  title: Text('Path ${index + 1}: ${path.id}'), // id zamiast d
+                  title: Text('${path.id}'), // id zamiast d
                   tileColor: path.selected ? Colors.green[200] : null,
                   onTap: () => toggleSelection(index),
                 );
