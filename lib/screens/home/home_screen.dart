@@ -1,8 +1,5 @@
 import 'package:flutter/material.dart';
-import '../svg_viewer/svg_viewer_screen.dart';
-import 'dart:io';
-import 'package:file_selector/file_selector.dart';
-import '../svg_viewer/svg_viewer_screen.dart';
+import '../../widgets/main_app_bar.dart';
 
 
 class HomeScreen extends StatelessWidget {
@@ -10,48 +7,14 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('CNC Panel'),
-      ),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SvgViewerScreen()),
-                  );
-                },
-                child: const Text('Open test SVG'),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () async {
-                  final XTypeGroup typeGroup = XTypeGroup(
-                    label: 'SVG',
-                    extensions: ['svg'],
-                  );
-
-                  final XFile? file =
-                  await openFile(acceptedTypeGroups: [typeGroup]);
-
-                  if (file == null) return;
-
-                  final content = await file.readAsString();
-
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => SvgViewerScreen(svgContent: content),
-                    ),
-                  );
-                },
-                child: const Text('Select SVG file'),
-              ),
-            ],
-          ),
+    return const Scaffold(
+      appBar: MainAppBar(),
+      body: Center(
+        child: Text(
+          'CNC Panel',
+          style: TextStyle(fontSize: 24, color: Colors.grey),
         ),
+      ),
     );
   }
 }
