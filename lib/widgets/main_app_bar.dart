@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../screens/svg_viewer/svg_viewer_screen.dart';
 import 'package:file_selector/file_selector.dart';
 
 class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   const MainAppBar({super.key});
 
-  void _openTestSvg(BuildContext context) {
+  Future<void> _openTestSvg(BuildContext context, String filename) async {
+    final content = await rootBundle.loadString('assets/${filename}');
+
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SvgViewerScreen()),
+      MaterialPageRoute(
+        builder: (_) => SvgViewerScreen(svgContent: content),
+      ),
     );
   }
 
-  Future<void> _selectSvgFile(BuildContext context) async {
+  Future<void> _openSvgFile(BuildContext context) async {
     final XTypeGroup typeGroup = XTypeGroup(
       label: 'SVG',
       extensions: ['svg'],
@@ -33,25 +38,39 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
+      backgroundColor: Colors.black12,
       title: MenuBar(
         style: MenuStyle(
-          backgroundColor: MaterialStateProperty.all(Colors.transparent),
-          elevation: MaterialStateProperty.all(0),
+          backgroundColor: WidgetStateProperty.all(Colors.transparent),
+          elevation: WidgetStateProperty.all(0),
         ),
         children: [
           SubmenuButton(
+            child: const Text('File'),
             menuChildren: [
               MenuItemButton(
-                onPressed: () => _openTestSvg(context),
-                child: const Text('Open test SVG'),
+                onPressed: () => _openSvgFile(context),
+                child: const Text('Open SVG file'),
               ),
               MenuItemButton(
-                onPressed: () => _selectSvgFile(context),
-                child: const Text('Select SVG file'),
+                onPressed: () => _openTestSvg(context, 'test.svg'),
+                child: const Text('Open test.svg'),
+              ),
+              MenuItemButton(
+                onPressed: () => _openTestSvg(context, 'test_2.svg'),
+                child: const Text('Open test_2.svg'),
               ),
             ],
-            child: const Text('File'),
           ),
+          SubmenuButton(
+            child: const Text('Other'),
+            menuChildren: [
+              MenuItemButton(
+                onPressed: () => {},
+                child: const Text('Something'),
+              ),
+            ],
+          )
         ],
       ),
     );

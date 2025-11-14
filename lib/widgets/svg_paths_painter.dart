@@ -10,11 +10,11 @@ class SvgPathsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // // Skalowanie z viewBox -> widget size
+    // Skalowanie z viewBox -> widget size
     final scaleX = size.width / viewBox.width;
     final scaleY = size.height / viewBox.height;
     final scale = scaleX < scaleY ? scaleX : scaleY;
-    canvas.scale(scale);
+    canvas.scale(scale / 2); // FIXME - why /2
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
