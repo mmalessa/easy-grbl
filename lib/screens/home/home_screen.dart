@@ -156,19 +156,6 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _onCanvasSelect(SvgNode? node) {
-    if (node == null) {
-      if (_selectedNode != null) {
-        setState(() {
-          _deselectAll(_document!.roots);
-          _selectedNode = null;
-        });
-      }
-    } else {
-      _selectNode(node);
-    }
-  }
-
   void _onSettingsChanged(SvgNode node, LayerSettings settings) {
     setState(() {
       node.settings = settings;
@@ -254,11 +241,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         machinePos: _grbl.connected
                             ? Offset(_grbl.x, _grbl.y)
                             : null,
-                        onCanvasSelect: _document != null
-                            ? _onCanvasSelect
-                            : null,
                         frameBounds: _frameBounds,
                         toolpath: _toolpath,
+                        onJogTo: _grbl.connected
+                            ? (mx, my) {
+                                _grbl.jog(
+                                    mx - _grbl.x, my - _grbl.y, 0);
+                              }
+                            : null,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),

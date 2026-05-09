@@ -1,28 +1,26 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
-import '../models/svg_node.dart';
-import '../services/affine.dart';
 import '../services/toolpath.dart';
 import 'svg_document_painter.dart';
 
 class SvgPreviewWidget extends StatefulWidget {
   final SvgDocument? document;
   final Offset? machinePos;
-  final void Function(SvgNode?)? onCanvasSelect;
   /// SVG-space bounding rect to show as a dashed frame overlay.
   final Rect? frameBounds;
   /// Pre-computed toolpath to optionally overlay on the canvas.
   final ToolpathData? toolpath;
+  /// Double-click callback — receives machine coordinates (X right, Y up).
+  final void Function(double x, double y)? onJogTo;
 
   const SvgPreviewWidget({
     super.key,
     this.document,
     this.machinePos,
-    this.onCanvasSelect,
     this.frameBounds,
     this.toolpath,
+    this.onJogTo,
   });
 
   @override
@@ -37,9 +35,11 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
   bool _showRulers = true;
   bool _showToolpath = false;
 
-  // Tap detection (Listener-based to avoid gesture arena conflicts)
+  // Click / double-click detection (Listener-based to avoid gesture arena conflicts)
   Offset? _pointerDown;
   bool _pointerMoved = false;
+  DateTime? _lastTapTime;
+  Offset? _lastTapPos;
 
   static const _rulerW = 24.0;
 
@@ -86,56 +86,15 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
       ..setEntry(1, 3, cy * (1 - f) + ty * f);
   }
 
-  // ── Hit testing (click-to-select) ────────────────────────────────
+  // ── Double-click → jog to position ──────────────────────────────
 
-  void _onTap(Offset viewportPos) {
+  void _onDoubleClick(Offset viewportPos) {
     final doc = widget.document;
     if (doc == null) return;
     final svgPos = _viewportToSvg(viewportPos);
     if (svgPos == null) return;
-
-    final ivScale = _controller.value.storage[0];
-    final painterScale = _canvasSize == Size.zero
-        ? 1.0
-        : math.min(_canvasSize.width / doc.viewBox.width,
-            _canvasSize.height / doc.viewBox.height);
-    final threshold = 6.0 / (painterScale * ivScale);
-
-    final hit = _hitNodes(doc.roots, svgPos, threshold, SvgAffine.identity);
-    widget.onCanvasSelect?.call(hit); // null = clicked empty space
-  }
-
-  SvgNode? _hitNodes(
-      List<SvgNode> nodes, Offset pt, double thr, SvgAffine pm) {
-    for (final node in nodes.reversed) {
-      if (!node.enabled) continue;
-      final m = pm.multiply(SvgAffine.fromSvgString(node.transform));
-      final child = _hitNodes(node.children, pt, thr, m);
-      if (child != null) return child;
-      if (node.pathData != null && _hitPath(node.pathData!, m, pt, thr)) {
-        return node;
-      }
-    }
-    return null;
-  }
-
-  bool _hitPath(
-      String pathData, SvgAffine xform, Offset pt, double thr) {
-    try {
-      final path =
-          parseSvgPathData(pathData).transform(xform.toFloat64());
-      final thrSq = thr * thr;
-      final sampleStep = math.max(thr * 2, 0.5);
-      for (final metric in path.computeMetrics()) {
-        for (var d = 0.0; d <= metric.length; d += sampleStep) {
-          final t = metric.getTangentForOffset(d);
-          if (t != null && (t.position - pt).distanceSquared <= thrSq) {
-            return true;
-          }
-        }
-      }
-    } catch (_) {}
-    return false;
+    final vb = doc.viewBox;
+    widget.onJogTo?.call(svgPos.dx - vb.left, vb.bottom - svgPos.dy);
   }
 
   // ── Build ────────────────────────────────────────────────────────
@@ -225,7 +184,21 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
             }
           },
           onPointerUp: (e) {
-            if (!_pointerMoved) _onTap(e.localPosition);
+            if (_pointerMoved) return;
+            final pos = e.localPosition;
+            final now = DateTime.now();
+            if (_lastTapTime != null &&
+                now.difference(_lastTapTime!) <=
+                    const Duration(milliseconds: 300) &&
+                _lastTapPos != null &&
+                (pos - _lastTapPos!).distance <= 20) {
+              _lastTapTime = null;
+              _lastTapPos = null;
+              _onDoubleClick(pos);
+            } else {
+              _lastTapTime = now;
+              _lastTapPos = pos;
+            }
           },
           child: MouseRegion(
             onHover: (e) {
