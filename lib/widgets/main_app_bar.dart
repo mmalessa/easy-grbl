@@ -90,12 +90,12 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 onPressed: isConnected ? onHomeAll : null,
                 leadingIcon: const Icon(Icons.home, size: 16),
-                child: const Text('Home All'),
+                child: const Text('Go Home'),
               ),
               MenuItemButton(
                 onPressed: isConnected ? onSetOrigin : null,
                 leadingIcon: const Icon(Icons.gps_fixed, size: 16),
-                child: const Text('Set Origin'),
+                child: const Text('Set Home'),
               ),
             ],
           ),

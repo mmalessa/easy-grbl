@@ -68,7 +68,7 @@ class JogPanel extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _CmdBtn(
-                      label: 'Home All',
+                      label: 'Go Home',
                       icon: Icons.home_outlined,
                       enabled: enabled,
                       onTap: service.homeAll,
@@ -77,7 +77,7 @@ class JogPanel extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: _CmdBtn(
-                      label: 'Set Origin',
+                      label: 'Set Home',
                       icon: Icons.gps_fixed,
                       enabled: enabled,
                       onTap: service.setOrigin,
@@ -223,7 +223,7 @@ class _JogPad extends StatelessWidget {
               icon: Icons.home,
               enabled: enabled,
               onTap: service.homeAll,
-              tooltip: 'Home All',
+              tooltip: 'Go Home',
             ),
             const SizedBox(width: 4),
             _JogBtn(

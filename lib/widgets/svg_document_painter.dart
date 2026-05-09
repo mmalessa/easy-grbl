@@ -5,6 +5,7 @@ import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
 import '../services/svg_transform.dart';
+import '../services/toolpath.dart';
 
 class SvgDocumentPainter extends CustomPainter {
   final SvgDocument document;
@@ -12,12 +13,15 @@ class SvgDocumentPainter extends CustomPainter {
   final bool showGrid;
   /// SVG-space bounding rect of active paths; drawn as dashed overlay when set.
   final Rect? frameBounds;
+  /// Pre-computed toolpath to overlay on the canvas.
+  final ToolpathData? toolpath;
 
   const SvgDocumentPainter({
     required this.document,
     this.machinePos,
     this.showGrid = false,
     this.frameBounds,
+    this.toolpath,
   });
 
   @override
@@ -61,6 +65,9 @@ class SvgDocumentPainter extends CustomPainter {
       _paintNode(canvas, node, paint, true, null);
     }
 
+    // Toolpath overlay (actual tool movement preview)
+    if (toolpath != null) _paintToolpath(canvas, toolpath!, scale);
+
     // Frame overlay (dashed bounding rect of active paths)
     if (frameBounds != null) {
       _paintFrameOverlay(canvas, frameBounds!, scale);
@@ -98,6 +105,33 @@ class SvgDocumentPainter extends CustomPainter {
 
     drawLines(10, majorPaint);
     if (scale >= 2.5) drawLines(1, minorPaint); // minor grid only when zoomed in
+  }
+
+  void _paintToolpath(Canvas canvas, ToolpathData tp, double scale) {
+    // Feed paths (laser on) — solid, coloured by operation type
+    for (final entry in tp.feeds.entries) {
+      canvas.drawPath(
+        entry.value,
+        Paint()
+          ..color = entry.key.withValues(alpha: 0.80)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.55 / scale
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
+      );
+    }
+    // Rapid moves (laser off) — dashed grey
+    final dashed = dashPath(
+      tp.rapidPath,
+      dashArray: CircularIntervalList<double>([3.0 / scale, 2.0 / scale]),
+    );
+    canvas.drawPath(
+      dashed,
+      Paint()
+        ..color = const Color(0xFF999999).withValues(alpha: 0.55)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.3 / scale,
+    );
   }
 
   void _paintFrameOverlay(Canvas canvas, Rect bounds, double scale) {

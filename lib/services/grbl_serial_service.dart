@@ -182,6 +182,8 @@ class GrblSerialService extends GrblService {
   void setOrigin() {
     if (!isIdle) return;
     _sendRaw('G10 L20 P1 X0 Y0 Z0');
+    x = 0; y = 0; z = 0;
+    notifyListeners();
   }
 
   // ── Job execution (G-code streaming) ────────────────────────────
@@ -230,18 +232,19 @@ class GrblSerialService extends GrblService {
       if (!ok && !_jobCancelled) break;
     }
 
-    if (!_jobCancelled) {
-      jobProgress = 1.0;
-      jobCurrentLabel = 'Complete';
-      notifyListeners();
-      await Future.delayed(const Duration(seconds: 1));
-    }
-
     jobProgress = 0.0;
     jobCurrentLabel = '';
     _jobPaused = false;
-    _jobCancelled = false;
-    setMachineStatus(MachineStatus.idle);
+    if (!_jobCancelled) {
+      // Natural completion: transition to idle and mark done in one notification.
+      _jobCancelled = false;
+      status = MachineStatus.idle;
+      jobJustCompleted = true;
+      notifyListeners();
+    } else {
+      _jobCancelled = false;
+      setMachineStatus(MachineStatus.idle);
+    }
   }
 
   Future<bool> _waitAck() {

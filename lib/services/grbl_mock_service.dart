@@ -99,15 +99,15 @@ class GrblMockService extends GrblService {
 
   void _advance() {
     if (jobCurrentStep >= _jobSteps.length) {
-      jobProgress = 1.0;
-      jobCurrentLabel = 'Complete';
+      _jobSteps = [];
+      jobProgress = 0.0;
+      jobCurrentStep = 0;
+      jobCurrentLabel = '';
+      _jobPaused = false;
+      // Transition to idle and mark completion in one notification.
+      status = MachineStatus.idle;
+      jobJustCompleted = true;
       notifyListeners();
-      _jobTimer = Timer(const Duration(seconds: 1), () {
-        _jobSteps = [];
-        jobProgress = 0.0;
-        jobCurrentLabel = '';
-        setMachineStatus(MachineStatus.idle);
-      });
       return;
     }
     jobCurrentLabel = _jobSteps[jobCurrentStep];

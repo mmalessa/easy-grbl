@@ -4,6 +4,7 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../services/affine.dart';
+import '../services/toolpath.dart';
 import 'svg_document_painter.dart';
 
 class SvgPreviewWidget extends StatefulWidget {
@@ -12,6 +13,8 @@ class SvgPreviewWidget extends StatefulWidget {
   final void Function(SvgNode?)? onCanvasSelect;
   /// SVG-space bounding rect to show as a dashed frame overlay.
   final Rect? frameBounds;
+  /// Pre-computed toolpath to optionally overlay on the canvas.
+  final ToolpathData? toolpath;
 
   const SvgPreviewWidget({
     super.key,
@@ -19,6 +22,7 @@ class SvgPreviewWidget extends StatefulWidget {
     this.machinePos,
     this.onCanvasSelect,
     this.frameBounds,
+    this.toolpath,
   });
 
   @override
@@ -31,6 +35,7 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
   Offset? _cursorSvg;
   bool _showGrid = false;
   bool _showRulers = true;
+  bool _showToolpath = false;
 
   // Tap detection (Listener-based to avoid gesture arena conflicts)
   Offset? _pointerDown;
@@ -163,6 +168,13 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
   Widget _buildCanvas() {
     return Column(
       children: [
+        Expanded(
+          child: Row(children: [
+            if (_showRulers)
+              SizedBox(width: _rulerW, child: _buildRuler(Axis.vertical)),
+            Expanded(child: _buildInteractiveArea()),
+          ]),
+        ),
         if (_showRulers)
           SizedBox(
             height: _rulerW,
@@ -171,13 +183,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
               Expanded(child: _buildRuler(Axis.horizontal)),
             ]),
           ),
-        Expanded(
-          child: Row(children: [
-            if (_showRulers)
-              SizedBox(width: _rulerW, child: _buildRuler(Axis.vertical)),
-            Expanded(child: _buildInteractiveArea()),
-          ]),
-        ),
       ],
     );
   }
@@ -244,6 +249,7 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
                     machinePos: widget.machinePos,
                     showGrid: _showGrid,
                     frameBounds: widget.frameBounds,
+                    toolpath: _showToolpath ? widget.toolpath : null,
                   ),
                 ),
               ),
@@ -275,6 +281,10 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
             onToggleGrid: () => setState(() => _showGrid = !_showGrid),
             onToggleRulers: () =>
                 setState(() => _showRulers = !_showRulers),
+            showToolpath: _showToolpath,
+            hasToolpath: widget.toolpath != null,
+            onToggleToolpath: () =>
+                setState(() => _showToolpath = !_showToolpath),
           ),
         ),
       ]);
@@ -365,13 +375,12 @@ class _RulerPainter extends CustomPainter {
       if (axis == Axis.horizontal) {
         if (px >= 0 && px <= size.width) {
           final tickLen = isMajor ? 8.0 : 4.0;
-          canvas.drawLine(Offset(px, size.height - tickLen),
-              Offset(px, size.height), paint);
+          // Ruler is at the bottom — ticks point upward (toward the canvas)
+          canvas.drawLine(Offset(px, 0), Offset(px, tickLen), paint);
           if (isMajor) {
-            // Horizontal ruler: machine X = svgX - vb.left
             final machineVal = sv - viewBox.left;
             _label(canvas, machineVal.round().toString(),
-                Offset(px + 2, 1), false);
+                Offset(px + 2, tickLen + 1), false);
           }
         }
       } else {
@@ -391,13 +400,12 @@ class _RulerPainter extends CustomPainter {
       idx++;
     }
 
-    // Border edge
+    // Border edge (horizontal: top edge faces canvas; vertical: right edge faces canvas)
     final border = Paint()
       ..color = const Color(0xFF444444)
       ..strokeWidth = 0.5;
     if (axis == Axis.horizontal) {
-      canvas.drawLine(
-          Offset(0, size.height), Offset(size.width, size.height), border);
+      canvas.drawLine(Offset(0, 0), Offset(size.width, 0), border);
     } else {
       canvas.drawLine(
           Offset(size.width, 0), Offset(size.width, size.height), border);
@@ -460,18 +468,21 @@ class _CursorCoords extends StatelessWidget {
 }
 
 class _CanvasControls extends StatelessWidget {
-  final bool showGrid, showRulers;
+  final bool showGrid, showRulers, showToolpath, hasToolpath;
   final VoidCallback onZoomIn, onZoomOut, onFit;
-  final VoidCallback onToggleGrid, onToggleRulers;
+  final VoidCallback onToggleGrid, onToggleRulers, onToggleToolpath;
 
   const _CanvasControls({
     required this.showGrid,
     required this.showRulers,
+    required this.showToolpath,
+    required this.hasToolpath,
     required this.onZoomIn,
     required this.onZoomOut,
     required this.onFit,
     required this.onToggleGrid,
     required this.onToggleRulers,
+    required this.onToggleToolpath,
   });
 
   @override
@@ -490,6 +501,10 @@ class _CanvasControls extends StatelessWidget {
           _btn(Icons.grid_4x4, onToggleGrid,
               showGrid ? 'Hide grid' : 'Show grid',
               active: showGrid),
+          _btn(Icons.route, onToggleToolpath,
+              showToolpath ? 'Hide toolpath' : 'Show toolpath',
+              active: showToolpath,
+              disabled: !hasToolpath),
           Container(width: 1, height: 16, color: Colors.white12),
           _btn(Icons.add, onZoomIn, 'Zoom in (+)'),
           _btn(Icons.remove, onZoomOut, 'Zoom out (-)'),
@@ -500,22 +515,21 @@ class _CanvasControls extends StatelessWidget {
   }
 
   Widget _btn(IconData icon, VoidCallback onTap, String tooltip,
-      {bool active = false}) {
+      {bool active = false, bool disabled = false}) {
+    final color = disabled
+        ? Colors.white.withValues(alpha: 0.2)
+        : active
+            ? Colors.lightBlue.shade300
+            : Colors.white.withValues(alpha: 0.6);
     return Tooltip(
       message: tooltip,
       waitDuration: const Duration(milliseconds: 600),
       child: InkWell(
-        onTap: onTap,
+        onTap: disabled ? null : onTap,
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-          child: Icon(
-            icon,
-            size: 15,
-            color: active
-                ? Colors.lightBlue.shade300
-                : Colors.white.withValues(alpha: 0.6),
-          ),
+          child: Icon(icon, size: 15, color: color),
         ),
       ),
     );

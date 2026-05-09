@@ -11,6 +11,7 @@ import '../../services/grbl_service.dart';
 import '../../services/grbl_mock_service.dart';
 import '../../services/grbl_serial_service.dart';
 import '../../services/gcode_generator.dart';
+import '../../services/toolpath.dart';
 import '../../widgets/connect_dialog.dart';
 import '../../widgets/main_app_bar.dart';
 import '../../widgets/gcode_dialog.dart';
@@ -31,6 +32,7 @@ class _HomeScreenState extends State<HomeScreen> {
   GrblService _grbl = GrblMockService();
   final List<RecentFile> _recentFiles = [];
   Rect? _frameBounds; // SVG-space bounding rect for canvas overlay
+  ToolpathData? _toolpath;
 
   @override
   void dispose() {
@@ -105,11 +107,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onFileLoaded(String content, String filename) {
+    final doc = SvgTreeParser.parse(content);
     setState(() {
-      _document = SvgTreeParser.parse(content);
+      _document = doc;
       _filename = filename;
       _selectedNode = null;
       _frameBounds = null;
+      _toolpath = computeToolpath(doc);
     });
   }
 
@@ -130,7 +134,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Node selection ───────────────────────────────────────────────
 
   void _toggleEnabled(SvgNode node) {
-    setState(() => node.enabled = !node.enabled);
+    setState(() {
+      node.enabled = !node.enabled;
+      if (_document != null) _toolpath = computeToolpath(_document!);
+    });
   }
 
   void _selectNode(SvgNode node) {
@@ -159,7 +166,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onSettingsChanged(SvgNode node, LayerSettings settings) {
-    setState(() => node.settings = settings);
+    setState(() {
+      node.settings = settings;
+      if (_document != null) _toolpath = computeToolpath(_document!);
+    });
   }
 
   void _deselectAll(List<SvgNode> nodes) {
@@ -227,11 +237,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     Expanded(
                       child: SvgPreviewWidget(
                         document: _document,
-                        machinePos: Offset(_grbl.x, _grbl.y),
+                        machinePos: _grbl.connected
+                            ? Offset(_grbl.x, _grbl.y)
+                            : null,
                         onCanvasSelect: _document != null
                             ? _onCanvasSelect
                             : null,
                         frameBounds: _frameBounds,
+                        toolpath: _toolpath,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),
