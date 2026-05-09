@@ -185,7 +185,7 @@ class _OpTypePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      children: OperationType.values
+      children: const [OperationType.engrave, OperationType.cut]
           .map((t) => Expanded(
                 child: GestureDetector(
                   onTap: () => onChanged(t),
