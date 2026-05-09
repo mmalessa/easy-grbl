@@ -55,7 +55,6 @@ abstract class GrblService extends ChangeNotifier {
   double jobProgress = 0.0;
   int jobCurrentStep = 0;
   String jobCurrentLabel = '';
-  bool jobJustCompleted = false;
 
   // ── Concrete getters ─────────────────────────────────────────────
   bool get isIdle => connected && status == MachineStatus.idle;
@@ -98,7 +97,6 @@ abstract class GrblService extends ChangeNotifier {
   /// Update machine status and notify listeners.
   /// Any non-idle transition clears the jobJustCompleted flag.
   void setMachineStatus(MachineStatus s) {
-    if (s != MachineStatus.idle) jobJustCompleted = false;
     status = s;
     notifyListeners();
   }

@@ -75,10 +75,6 @@ class RunPanel extends StatelessWidget {
     final canRun = paths > 0 && service.isIdle;
     final canFrame = paths > 0;
 
-    if (service.jobJustCompleted) {
-      return _jobComplete(context, canRun);
-    }
-
     final estimateSec = (passes * 5).clamp(1, 9999);
     final estLabel = estimateSec < 60
         ? '~${estimateSec}s'
@@ -164,61 +160,6 @@ class RunPanel extends StatelessWidget {
                   onTap: onExportGcode!,
                 ),
               ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _jobComplete(BuildContext context, bool canRun) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.check_circle_outline,
-                  size: 13, color: Color(0xFF388E3C)),
-              const SizedBox(width: 5),
-              Text('Job complete',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: service.isIdle ? service.homeAll : null,
-                  icon: const Icon(Icons.home, size: 14),
-                  label: const Text('Go Home'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.grey[700],
-                    side: BorderSide(color: Colors.grey.shade400),
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    textStyle: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: canRun ? () => service.startJob(document!) : null,
-                  icon: const Icon(Icons.replay, size: 14),
-                  label: const Text('Run Again'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF388E3C),
-                    disabledBackgroundColor: Colors.grey[200],
-                    disabledForegroundColor: Colors.grey[500],
-                    padding: const EdgeInsets.symmetric(vertical: 9),
-                    textStyle: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
             ],
           ),
         ],

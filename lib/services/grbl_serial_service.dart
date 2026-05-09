@@ -235,16 +235,8 @@ class GrblSerialService extends GrblService {
     jobProgress = 0.0;
     jobCurrentLabel = '';
     _jobPaused = false;
-    if (!_jobCancelled) {
-      // Natural completion: transition to idle and mark done in one notification.
-      _jobCancelled = false;
-      status = MachineStatus.idle;
-      jobJustCompleted = true;
-      notifyListeners();
-    } else {
-      _jobCancelled = false;
-      setMachineStatus(MachineStatus.idle);
-    }
+    _jobCancelled = false;
+    setMachineStatus(MachineStatus.idle);
   }
 
   Future<bool> _waitAck() {

@@ -150,9 +150,14 @@ class GrblMockService extends GrblService {
       jobCurrentLabel = '';
       _jobPaused = false;
       _prevStepLabel = '';
-      status = MachineStatus.idle;
-      jobJustCompleted = true;
-      notifyListeners();
+      logTx('\$H');
+      setMachineStatus(MachineStatus.homing);
+      Future.delayed(const Duration(milliseconds: 1600), () {
+        x = 0; y = 0; z = 0;
+        logRx('ok');
+        logRx('<Idle|MPos:0.000,0.000,0.000>');
+        setMachineStatus(MachineStatus.idle);
+      });
       return;
     }
 
