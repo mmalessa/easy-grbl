@@ -10,12 +10,15 @@ class SvgPreviewWidget extends StatefulWidget {
   final SvgDocument? document;
   final Offset? machinePos;
   final void Function(SvgNode?)? onCanvasSelect;
+  /// SVG-space bounding rect to show as a dashed frame overlay.
+  final Rect? frameBounds;
 
   const SvgPreviewWidget({
     super.key,
     this.document,
     this.machinePos,
     this.onCanvasSelect,
+    this.frameBounds,
   });
 
   @override
@@ -240,6 +243,7 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
                     document: widget.document!,
                     machinePos: widget.machinePos,
                     showGrid: _showGrid,
+                    frameBounds: widget.frameBounds,
                   ),
                 ),
               ),
@@ -247,12 +251,15 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
           ),
         ),
 
-        // Cursor coordinates — bottom left
+        // Cursor coordinates — bottom left (displayed in machine coords: origin at bottom-left)
         if (_cursorSvg != null)
           Positioned(
             bottom: 6,
             left: 6,
-            child: _CursorCoords(pos: _cursorSvg!),
+            child: _CursorCoords(
+              svgPos: _cursorSvg!,
+              viewBox: widget.document!.viewBox,
+            ),
           ),
 
         // Controls — bottom right
@@ -361,7 +368,9 @@ class _RulerPainter extends CustomPainter {
           canvas.drawLine(Offset(px, size.height - tickLen),
               Offset(px, size.height), paint);
           if (isMajor) {
-            _label(canvas, sv.round().toString(),
+            // Horizontal ruler: machine X = svgX - vb.left
+            final machineVal = sv - viewBox.left;
+            _label(canvas, machineVal.round().toString(),
                 Offset(px + 2, 1), false);
           }
         }
@@ -371,7 +380,9 @@ class _RulerPainter extends CustomPainter {
           canvas.drawLine(Offset(size.width - tickLen, px),
               Offset(size.width, px), paint);
           if (isMajor) {
-            _label(canvas, sv.round().toString(),
+            // Vertical ruler: machine Y = vb.bottom - svgY (0 at bottom, increases upward)
+            final machineVal = viewBox.bottom - sv;
+            _label(canvas, machineVal.round().toString(),
                 Offset(size.width / 2, px), true);
           }
         }
@@ -421,11 +432,15 @@ class _RulerPainter extends CustomPainter {
 // ── Overlays ─────────────────────────────────────────────────────────────────
 
 class _CursorCoords extends StatelessWidget {
-  final Offset pos;
-  const _CursorCoords({required this.pos});
+  final Offset svgPos;
+  final Rect viewBox;
+  const _CursorCoords({required this.svgPos, required this.viewBox});
 
   @override
   Widget build(BuildContext context) {
+    // Convert SVG coords to machine coords: origin at bottom-left of work area
+    final mx = svgPos.dx - viewBox.left;
+    final my = viewBox.bottom - svgPos.dy;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
@@ -433,7 +448,7 @@ class _CursorCoords extends StatelessWidget {
         borderRadius: BorderRadius.circular(3),
       ),
       child: Text(
-        'X ${pos.dx.toStringAsFixed(2)}  Y ${pos.dy.toStringAsFixed(2)}',
+        'X ${mx.toStringAsFixed(2)}  Y ${my.toStringAsFixed(2)}',
         style: const TextStyle(
           color: Colors.white70,
           fontSize: 10,

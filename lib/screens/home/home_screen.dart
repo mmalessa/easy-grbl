@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show Rect;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
@@ -6,8 +7,11 @@ import '../../models/svg_document.dart';
 import '../../models/svg_node.dart';
 import '../../models/layer_settings.dart';
 import '../../services/svg_tree_parser.dart';
+import '../../services/grbl_service.dart';
 import '../../services/grbl_mock_service.dart';
+import '../../services/grbl_serial_service.dart';
 import '../../services/gcode_generator.dart';
+import '../../widgets/connect_dialog.dart';
 import '../../widgets/main_app_bar.dart';
 import '../../widgets/gcode_dialog.dart';
 import '../../widgets/svg_preview_widget.dart';
@@ -24,13 +28,46 @@ class _HomeScreenState extends State<HomeScreen> {
   SvgDocument? _document;
   String _filename = '';
   SvgNode? _selectedNode;
-  final _grbl = GrblMockService();
+  GrblService _grbl = GrblMockService();
   final List<RecentFile> _recentFiles = [];
+  Rect? _frameBounds; // SVG-space bounding rect for canvas overlay
 
   @override
   void dispose() {
     _grbl.dispose();
     super.dispose();
+  }
+
+  // ── Connection ───────────────────────────────────────────────────
+
+  Future<void> _openConnectDialog() async {
+    if (_grbl.connected) {
+      _grbl.disconnect();
+      return;
+    }
+    final result = await showConnectDialog(context);
+    if (result == null || !mounted) return;
+
+    if (result.mock) {
+      final old = _grbl;
+      final mock = GrblMockService()..connect();
+      setState(() => _grbl = mock);
+      old.dispose();
+    } else {
+      final serial = GrblSerialService();
+      final ok = await serial.connectSerial(result.port!, result.baud);
+      if (!mounted) return;
+      if (ok) {
+        final old = _grbl;
+        setState(() => _grbl = serial);
+        old.dispose();
+      } else {
+        serial.dispose();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Cannot connect to ${result.port}')),
+        );
+      }
+    }
   }
 
   // ── File operations ──────────────────────────────────────────────
@@ -72,7 +109,14 @@ class _HomeScreenState extends State<HomeScreen> {
       _document = SvgTreeParser.parse(content);
       _filename = filename;
       _selectedNode = null;
+      _frameBounds = null;
     });
+  }
+
+  // ── Framing ──────────────────────────────────────────────────────
+
+  void _onFrame(Rect svgBounds) {
+    setState(() => _frameBounds = svgBounds);
   }
 
   // ── G-code export ────────────────────────────────────────────────
@@ -140,10 +184,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _grbl.jog(step, 0, 0);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowUp:
-        _grbl.jog(0, -step, 0);
+        _grbl.jog(0, step, 0);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.arrowDown:
-        _grbl.jog(0, step, 0);
+        _grbl.jog(0, -step, 0);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.pageUp:
         _grbl.jog(0, 0, step);
@@ -170,9 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onOpenRecent: _openRecentFile,
             onExportGcode: _document != null ? _exportGcode : null,
             isConnected: _grbl.connected,
-            onToggleConnect: () => _grbl.connected
-                ? _grbl.disconnect()
-                : _grbl.connect(),
+            onToggleConnect: () => _openConnectDialog(),
             onHomeAll: _grbl.homeAll,
             onSetOrigin: _grbl.setOrigin,
           ),
@@ -189,6 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onCanvasSelect: _document != null
                             ? _onCanvasSelect
                             : null,
+                        frameBounds: _frameBounds,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),
@@ -203,6 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onSettingsChanged: _onSettingsChanged,
                         onExportGcode:
                             _document != null ? _exportGcode : null,
+                        onFrame: _document != null ? _onFrame : null,
                       ),
                     ),
                   ],
@@ -220,7 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 class _StatusBar extends StatelessWidget {
   final String filename;
-  final GrblMockService grbl;
+  final GrblService grbl;
   const _StatusBar({required this.filename, required this.grbl});
 
   @override
@@ -256,7 +300,7 @@ class _StatusBar extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  final GrblMockService grbl;
+  final GrblService grbl;
   const _StatusChip({required this.grbl});
 
   @override

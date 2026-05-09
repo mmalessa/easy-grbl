@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../services/grbl_mock_service.dart';
+import '../services/grbl_service.dart';
 
 const _kSteps = [0.01, 0.1, 1.0, 10.0];
 
 class JogPanel extends StatelessWidget {
-  final GrblMockService service;
+  final GrblService service;
 
   const JogPanel({super.key, required this.service});
 
@@ -15,6 +15,7 @@ class JogPanel extends StatelessWidget {
       builder: (context, _) {
         final enabled = service.isIdle;
         final step = service.stepMm;
+        final stepZ = service.stepMmZ;
         return Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
           child: Column(
@@ -28,27 +29,38 @@ class JogPanel extends StatelessWidget {
               _JogPad(service: service, enabled: enabled, step: step),
               const SizedBox(height: 6),
 
-              // ── Z axis ────────────────────────────────────────
+              // ── Z axis + Z step ───────────────────────────────
               Row(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   _JogBtn(
                     label: 'Z+',
                     enabled: enabled,
-                    onTap: () => service.jog(0, 0, step),
+                    onTap: () => service.jog(0, 0, stepZ),
                   ),
-                  const SizedBox(width: 40),
+                  const SizedBox(width: 4),
                   _JogBtn(
                     label: 'Z−',
                     enabled: enabled,
-                    onTap: () => service.jog(0, 0, -step),
+                    onTap: () => service.jog(0, 0, -stepZ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StepSelector(
+                      label: 'Z',
+                      current: stepZ,
+                      onSelect: service.setStepZ,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
 
-              // ── Step selector ─────────────────────────────────
-              _StepSelector(service: service),
+              // ── XY step selector ──────────────────────────────
+              _StepSelector(
+                label: 'XY',
+                current: step,
+                onSelect: service.setStep,
+              ),
               const SizedBox(height: 10),
 
               // ── Commands ──────────────────────────────────────
@@ -84,7 +96,7 @@ class JogPanel extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PositionDisplay extends StatelessWidget {
-  final GrblMockService service;
+  final GrblService service;
   const _PositionDisplay({required this.service});
 
   @override
@@ -174,7 +186,7 @@ class _Coord extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _JogPad extends StatelessWidget {
-  final GrblMockService service;
+  final GrblService service;
   final bool enabled;
   final double step;
   const _JogPad({required this.service, required this.enabled, required this.step});
@@ -191,7 +203,8 @@ class _JogPad extends StatelessWidget {
             _JogBtn(
               icon: Icons.keyboard_arrow_up,
               enabled: enabled,
-              onTap: () => service.jog(0, -step, 0),
+              // Up = +Y in machine coords (origin at bottom-left)
+              onTap: () => service.jog(0, step, 0),
             ),
             const SizedBox(width: 44),
           ],
@@ -228,7 +241,8 @@ class _JogPad extends StatelessWidget {
             _JogBtn(
               icon: Icons.keyboard_arrow_down,
               enabled: enabled,
-              onTap: () => service.jog(0, step, 0),
+              // Down = -Y in machine coords
+              onTap: () => service.jog(0, -step, 0),
             ),
             const SizedBox(width: 44),
           ],
@@ -291,25 +305,32 @@ class _JogBtn extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _StepSelector extends StatelessWidget {
-  final GrblMockService service;
-  const _StepSelector({required this.service});
+  final String label;
+  final double current;
+  final void Function(double) onSelect;
+
+  const _StepSelector({
+    required this.label,
+    required this.current,
+    required this.onSelect,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text('Step', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
-        const SizedBox(width: 6),
+        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+        const SizedBox(width: 5),
         ...(_kSteps.map((s) => Padding(
               padding: const EdgeInsets.only(right: 3),
               child: GestureDetector(
-                onTap: () => service.setStep(s),
+                onTap: () => onSelect(s),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   decoration: BoxDecoration(
-                    color: service.stepMm == s
+                    color: current == s
                         ? Theme.of(context).colorScheme.primary
                         : Colors.grey[200],
                     borderRadius: BorderRadius.circular(4),
@@ -319,7 +340,7 @@ class _StepSelector extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: service.stepMm == s ? Colors.white : Colors.grey[700],
+                      color: current == s ? Colors.white : Colors.grey[700],
                     ),
                   ),
                 ),

@@ -1,49 +1,16 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'dart:ui';
+import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import 'grbl_service.dart';
 
-enum MachineStatus { idle, jog, run, homing, alarm, hold }
-
-extension MachineStatusDisplay on MachineStatus {
-  String get label => switch (this) {
-        MachineStatus.idle => 'IDLE',
-        MachineStatus.jog => 'JOG',
-        MachineStatus.run => 'RUN',
-        MachineStatus.homing => 'HOME',
-        MachineStatus.alarm => 'ALARM',
-        MachineStatus.hold => 'HOLD',
-      };
-
-  // ignore: avoid_returning_null_for_void
-  ({int r, int g, int b}) get rgb => switch (this) {
-        MachineStatus.idle => (r: 56, g: 142, b: 60),
-        MachineStatus.jog => (r: 25, g: 118, b: 210),
-        MachineStatus.run => (r: 230, g: 119, b: 0),
-        MachineStatus.homing => (r: 245, g: 177, b: 0),
-        MachineStatus.alarm => (r: 211, g: 47, b: 47),
-        MachineStatus.hold => (r: 230, g: 119, b: 0),
-      };
-}
-
-class GrblMockService extends ChangeNotifier {
-  double x = 0;
-  double y = 0;
-  double z = 0;
-  MachineStatus status = MachineStatus.idle;
-  double stepMm = 1.0;
-  bool connected = false;
-
-  // ── Job state ────────────────────────────────────────────────────
-  double jobProgress = 0.0;
-  int jobCurrentStep = 0;
-  String jobCurrentLabel = '';
+class GrblMockService extends GrblService {
   bool _jobPaused = false;
   List<String> _jobSteps = [];
   Timer? _jobTimer;
 
-  bool get isIdle => connected && status == MachineStatus.idle;
-  bool get isJobRunning => status == MachineStatus.run;
+  @override
   bool get isJobPaused => _jobPaused;
 
   // ── Connection ───────────────────────────────────────────────────
@@ -53,6 +20,7 @@ class GrblMockService extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void disconnect() {
     connected = false;
     notifyListeners();
@@ -60,54 +28,50 @@ class GrblMockService extends ChangeNotifier {
 
   // ── Jogging ──────────────────────────────────────────────────────
 
+  @override
   void jog(double dx, double dy, double dz) {
     if (!isIdle) return;
-    _setStatus(MachineStatus.jog);
+    setMachineStatus(MachineStatus.jog);
     Future.delayed(const Duration(milliseconds: 140), () {
       x = _round(x + dx);
       y = _round(y + dy);
       z = _round(z + dz);
-      _setStatus(MachineStatus.idle);
+      setMachineStatus(MachineStatus.idle);
     });
   }
 
+  @override
   void homeAll() {
-    if (!connected || !isIdle) return;
-    _setStatus(MachineStatus.homing);
+    if (!isIdle) return;
+    setMachineStatus(MachineStatus.homing);
     Future.delayed(const Duration(milliseconds: 1600), () {
-      x = 0;
-      y = 0;
-      z = 0;
-      _setStatus(MachineStatus.idle);
+      x = 0; y = 0; z = 0;
+      setMachineStatus(MachineStatus.idle);
     });
   }
 
+  @override
   void setOrigin() {
-    if (!connected || !isIdle) return;
-    x = 0;
-    y = 0;
-    z = 0;
-    notifyListeners();
-  }
-
-  void setStep(double step) {
-    stepMm = step;
+    if (!isIdle) return;
+    x = 0; y = 0; z = 0;
     notifyListeners();
   }
 
   // ── Job execution ────────────────────────────────────────────────
 
-  void startJob(List<SvgNode> roots) {
+  @override
+  void startJob(SvgDocument document) {
     if (!isIdle) return;
-    _jobSteps = _collectJobSteps(roots);
+    _jobSteps = _collectSteps(document.roots);
     if (_jobSteps.isEmpty) return;
     jobProgress = 0.0;
     jobCurrentStep = 0;
     _jobPaused = false;
-    _setStatus(MachineStatus.run);
-    _advanceJob();
+    setMachineStatus(MachineStatus.run);
+    _advance();
   }
 
+  @override
   void pauseJob() {
     if (!isJobRunning || _jobPaused) return;
     _jobPaused = true;
@@ -115,12 +79,14 @@ class GrblMockService extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void resumeJob() {
     if (!isJobRunning || !_jobPaused) return;
     _jobPaused = false;
-    _advanceJob();
+    _advance();
   }
 
+  @override
   void stopJob() {
     _jobTimer?.cancel();
     _jobSteps = [];
@@ -128,10 +94,10 @@ class GrblMockService extends ChangeNotifier {
     jobCurrentStep = 0;
     jobCurrentLabel = '';
     _jobPaused = false;
-    _setStatus(MachineStatus.idle);
+    setMachineStatus(MachineStatus.idle);
   }
 
-  void _advanceJob() {
+  void _advance() {
     if (jobCurrentStep >= _jobSteps.length) {
       jobProgress = 1.0;
       jobCurrentLabel = 'Complete';
@@ -140,7 +106,7 @@ class GrblMockService extends ChangeNotifier {
         _jobSteps = [];
         jobProgress = 0.0;
         jobCurrentLabel = '';
-        _setStatus(MachineStatus.idle);
+        setMachineStatus(MachineStatus.idle);
       });
       return;
     }
@@ -149,33 +115,11 @@ class GrblMockService extends ChangeNotifier {
     notifyListeners();
     _jobTimer = Timer(const Duration(milliseconds: 500), () {
       jobCurrentStep++;
-      _advanceJob();
+      _advance();
     });
   }
 
-  // ── Job helpers ──────────────────────────────────────────────────
-
-  /// Count paths and total passes for all enabled, non-skip paths.
-  ({int paths, int passes}) countJobSteps(List<SvgNode> roots) {
-    var paths = 0;
-    var passes = 0;
-    void walk(List<SvgNode> nodes, bool pe, OperationType? iop) {
-      for (final n in nodes) {
-        if (!n.enabled || !pe) continue;
-        final own = n.settings.operationType;
-        final eff = own != OperationType.skip ? own : iop;
-        if (n.pathData != null && eff != null && eff != OperationType.skip) {
-          paths++;
-          passes += n.settings.passes;
-        }
-        walk(n.children, n.enabled, eff);
-      }
-    }
-    walk(roots, true, null);
-    return (paths: paths, passes: passes);
-  }
-
-  List<String> _collectJobSteps(List<SvgNode> roots) {
+  List<String> _collectSteps(List<SvgNode> roots) {
     final steps = <String>[];
     void walk(List<SvgNode> nodes, bool pe, OperationType? iop) {
       for (final n in nodes) {
@@ -197,10 +141,42 @@ class GrblMockService extends ChangeNotifier {
     return steps;
   }
 
-  // ── Internal ─────────────────────────────────────────────────────
+  // ── Framing ──────────────────────────────────────────────────────
 
-  void _setStatus(MachineStatus s) {
-    status = s;
+  @override
+  void startFraming(Rect b) {
+    if (isFraming || isJobRunning) return;
+    isFraming = true;
+    notifyListeners();
+    _doFraming(b);
+  }
+
+  @override
+  void stopFraming() {
+    if (!isFraming) return;
+    isFraming = false;
+    notifyListeners();
+  }
+
+  // Corners: bottom-left → bottom-right → top-right → top-left → back.
+  // In machine coords Rect, top=minY (bottom edge), bottom=maxY (top edge).
+  void _doFraming(Rect b) async {
+    final corners = [
+      Offset(b.left, b.top),
+      Offset(b.right, b.top),
+      Offset(b.right, b.bottom),
+      Offset(b.left, b.bottom),
+      Offset(b.left, b.top),
+    ];
+    for (final c in corners) {
+      if (!isFraming) return;
+      await Future.delayed(const Duration(milliseconds: 350));
+      if (!isFraming) return;
+      x = c.dx;
+      y = c.dy;
+      notifyListeners();
+    }
+    isFraming = false;
     notifyListeners();
   }
 

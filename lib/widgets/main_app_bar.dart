@@ -84,7 +84,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                   isConnected ? Icons.usb_off : Icons.usb,
                   size: 16,
                 ),
-                child: Text(isConnected ? 'Disconnect' : 'Connect (mock)'),
+                child: Text(isConnected ? 'Disconnect' : 'Connect…'),
               ),
               const Divider(height: 1),
               MenuItemButton(

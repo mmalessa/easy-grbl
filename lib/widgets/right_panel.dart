@@ -1,21 +1,23 @@
+import 'dart:ui' show Rect;
 import 'package:flutter/material.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/layer_settings.dart';
-import '../services/grbl_mock_service.dart';
+import '../services/grbl_service.dart';
 import 'layers_panel.dart';
 import 'layer_settings_panel.dart';
 import 'jog_panel.dart';
 import 'run_panel.dart';
 
-class RightPanel extends StatefulWidget {
+class RightPanel extends StatelessWidget {
   final SvgDocument? document;
   final SvgNode? selectedNode;
-  final GrblMockService service;
+  final GrblService service;
   final void Function(SvgNode) onToggleEnabled;
   final void Function(SvgNode) onSelect;
   final void Function(SvgNode, LayerSettings) onSettingsChanged;
   final VoidCallback? onExportGcode;
+  final void Function(Rect svgBounds)? onFrame;
 
   const RightPanel({
     super.key,
@@ -26,14 +28,8 @@ class RightPanel extends StatefulWidget {
     required this.onSelect,
     required this.onSettingsChanged,
     this.onExportGcode,
+    this.onFrame,
   });
-
-  @override
-  State<RightPanel> createState() => _RightPanelState();
-}
-
-class _RightPanelState extends State<RightPanel> {
-  bool _jogExpanded = false;
 
   @override
   Widget build(BuildContext context) {
@@ -46,7 +42,7 @@ class _RightPanelState extends State<RightPanel> {
           _SectionHeader(title: 'Layers & Objects', icon: Icons.layers_outlined),
           ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 220),
-            child: widget.document == null
+            child: document == null
                 ? const SizedBox(
                     height: 44,
                     child: Center(
@@ -55,71 +51,59 @@ class _RightPanelState extends State<RightPanel> {
                     ),
                   )
                 : LayersPanel(
-                    roots: widget.document!.roots,
-                    onToggleEnabled: widget.onToggleEnabled,
-                    onSelect: widget.onSelect,
+                    roots: document!.roots,
+                    onToggleEnabled: onToggleEnabled,
+                    onSelect: onSelect,
                   ),
           ),
 
-          // ── Rest: scrollable ─────────────────────────────────────────
+          // ── Layer Settings (scrollable, shown when a node is selected) ──
           Expanded(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Layer Settings (when node selected)
-                  if (widget.selectedNode != null) ...[
+                  if (selectedNode != null) ...[
                     const Divider(height: 1, thickness: 1),
                     _SectionHeader(
                       title: 'Layer Settings',
                       icon: Icons.tune_outlined,
                       trailing: GestureDetector(
-                        onTap: () => widget.onSelect(widget.selectedNode!),
+                        onTap: () => onSelect(selectedNode!),
                         child: const Icon(Icons.close, size: 14),
                       ),
                     ),
                     LayerSettingsPanel(
-                      key: ValueKey(widget.selectedNode!.id),
-                      node: widget.selectedNode!,
-                      onChanged: (s) =>
-                          widget.onSettingsChanged(widget.selectedNode!, s),
+                      key: ValueKey(selectedNode!.id),
+                      node: selectedNode!,
+                      onChanged: (s) => onSettingsChanged(selectedNode!, s),
                     ),
                   ],
-
-                  // Jog
-                  const Divider(height: 1, thickness: 1),
-                  _SectionHeader(
-                    title: 'Jog',
-                    icon: Icons.gamepad_outlined,
-                    trailing: GestureDetector(
-                      onTap: () =>
-                          setState(() => _jogExpanded = !_jogExpanded),
-                      child: Icon(
-                        _jogExpanded
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                        size: 16,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
-                  if (_jogExpanded) JogPanel(service: widget.service),
-
-                  // Run Job
-                  const Divider(height: 1, thickness: 1),
-                  _SectionHeader(
-                    title: 'Run Job',
-                    icon: Icons.play_circle_outline,
-                  ),
-                  RunPanel(
-                    document: widget.document,
-                    service: widget.service,
-                    onExportGcode: widget.onExportGcode,
-                  ),
                 ],
               ),
             ),
           ),
+
+          // ── Run Job (always visible) ──────────────────────────────────
+          const Divider(height: 1, thickness: 1),
+          _SectionHeader(
+            title: 'Run Job',
+            icon: Icons.play_circle_outline,
+          ),
+          RunPanel(
+            document: document,
+            service: service,
+            onExportGcode: onExportGcode,
+            onFrame: onFrame,
+          ),
+
+          // ── Jog (always visible at bottom) ────────────────────────────
+          const Divider(height: 1, thickness: 1),
+          _SectionHeader(
+            title: 'Jog',
+            icon: Icons.gamepad_outlined,
+          ),
+          JogPanel(service: service),
         ],
       ),
     );

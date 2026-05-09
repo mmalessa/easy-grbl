@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' show Rect;
 import '../models/svg_document.dart';
-import '../services/grbl_mock_service.dart';
+import '../services/grbl_service.dart';
+import '../services/gcode_generator.dart';
 
 class RunPanel extends StatelessWidget {
   final SvgDocument? document;
-  final GrblMockService service;
+  final GrblService service;
   final VoidCallback? onExportGcode;
+  /// Called with the SVG-space bounds when the Frame button is pressed.
+  final void Function(Rect svgBounds)? onFrame;
 
   const RunPanel({
     super.key,
     required this.document,
     required this.service,
     this.onExportGcode,
+    this.onFrame,
   });
 
   @override
@@ -22,15 +27,37 @@ class RunPanel extends StatelessWidget {
         if (document == null) {
           return _hint('Load an SVG file to run a job.');
         }
-        if (!service.connected) {
-          return _hint('Connect to machine to run a job.');
-        }
-        if (service.isJobRunning) {
-          return _running(context);
-        }
+        if (service.isJobRunning) return _running(context);
+        if (service.isFraming) return _framing(context);
         return _idle(context);
       },
     );
+  }
+
+  static Widget _IconBtn({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+    String? tooltip,
+    bool enabled = true,
+  }) {
+    final widget = Material(
+      color: enabled ? Colors.grey[200] : Colors.grey[100],
+      borderRadius: BorderRadius.circular(5),
+      child: InkWell(
+        onTap: enabled ? onTap : null,
+        borderRadius: BorderRadius.circular(5),
+        child: SizedBox(
+          width: 38,
+          height: 40,
+          child: Icon(icon,
+              size: 18, color: enabled ? color : Colors.grey[400]),
+        ),
+      ),
+    );
+    return tooltip != null
+        ? Tooltip(message: tooltip, child: widget)
+        : widget;
   }
 
   Widget _hint(String text) => Padding(
@@ -42,7 +69,8 @@ class RunPanel extends StatelessWidget {
   Widget _idle(BuildContext context) {
     final roots = document!.roots;
     final (:paths, :passes) = service.countJobSteps(roots);
-    final canRun = paths > 0;
+    final canRun = paths > 0 && service.isIdle;
+    final canFrame = paths > 0;
     final estimateSec = (passes * 5).clamp(1, 9999);
     final estLabel = estimateSec < 60
         ? '~${estimateSec}s'
@@ -58,21 +86,51 @@ class RunPanel extends StatelessWidget {
             children: [
               Icon(Icons.layers_outlined, size: 12, color: Colors.grey[500]),
               const SizedBox(width: 5),
-              Text(
-                canRun
-                    ? '$paths path${paths == 1 ? '' : 's'}  •  $passes pass${passes == 1 ? '' : 'es'}  •  $estLabel'
-                    : 'No active paths — set operation types on layers',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+              Flexible(
+                child: Text(
+                  paths > 0
+                      ? '$paths path${paths == 1 ? '' : 's'}  •  $passes pass${passes == 1 ? '' : 'es'}  •  $estLabel'
+                      : 'No active paths — set operation types on layers',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          // Start + Export buttons
+          // Frame + Start + Export buttons
           Row(
             children: [
+              if (onFrame != null) ...[
+                Tooltip(
+                  message: 'Show frame on canvas'
+                      '${service.connected ? ' & trace with machine' : ''}',
+                  child: _IconBtn(
+                    icon: Icons.crop_free,
+                    color: const Color(0xFF6A1B9A),
+                    enabled: canFrame,
+                    onTap: () {
+                      final b = GcodeGenerator.computeActiveBounds(document!);
+                      if (b != null) {
+                        onFrame!(b);
+                        if (service.connected) {
+                          final vb = document!.viewBox;
+                          service.startFraming(Rect.fromLTRB(
+                            b.left - vb.left,
+                            vb.bottom - b.bottom,
+                            b.right - vb.left,
+                            vb.bottom - b.top,
+                          ));
+                        }
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: canRun ? () => service.startJob(roots) : null,
+                  onPressed: canRun ? () => service.startJob(document!) : null,
                   icon: const Icon(Icons.play_arrow, size: 16),
                   label: const Text('Start Job'),
                   style: FilledButton.styleFrom(
@@ -87,22 +145,11 @@ class RunPanel extends StatelessWidget {
               ),
               if (onExportGcode != null) ...[
                 const SizedBox(width: 6),
-                Tooltip(
-                  message: 'Export G-code',
-                  child: Material(
-                    color: Colors.grey[200],
-                    borderRadius: BorderRadius.circular(5),
-                    child: InkWell(
-                      onTap: onExportGcode,
-                      borderRadius: BorderRadius.circular(5),
-                      child: const SizedBox(
-                        width: 38,
-                        height: 40,
-                        child: Icon(Icons.code, size: 18,
-                            color: Color(0xFF1565C0)),
-                      ),
-                    ),
-                  ),
+                _IconBtn(
+                  icon: Icons.code,
+                  color: const Color(0xFF1565C0),
+                  tooltip: 'Export G-code',
+                  onTap: onExportGcode!,
                 ),
               ],
             ],
@@ -112,10 +159,38 @@ class RunPanel extends StatelessWidget {
     );
   }
 
+  Widget _framing(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(children: [
+            Icon(Icons.crop_free, size: 12, color: Colors.purple[600]),
+            const SizedBox(width: 5),
+            Text('Framing...',
+                style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+          ]),
+          const SizedBox(height: 8),
+          FilledButton.icon(
+            onPressed: service.stopFraming,
+            icon: const Icon(Icons.stop, size: 16),
+            label: const Text('Stop Framing'),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.grey[700],
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              textStyle:
+                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _running(BuildContext context) {
     final progress = service.jobProgress;
     final label = service.jobCurrentLabel;
-    final paused = service.isJobPaused;
     final pct = (progress * 100).round();
     final isComplete = label == 'Complete';
 
@@ -137,9 +212,7 @@ class RunPanel extends StatelessWidget {
                     valueColor: AlwaysStoppedAnimation<Color>(
                       isComplete
                           ? const Color(0xFF388E3C)
-                          : paused
-                              ? Colors.orange.shade400
-                              : const Color(0xFFFF9800),
+                          : const Color(0xFFFF9800),
                     ),
                   ),
                 ),
@@ -164,35 +237,22 @@ class RunPanel extends StatelessWidget {
           const SizedBox(height: 5),
           // Current step label
           Text(
-            paused ? 'Paused — $label' : label,
-            style: TextStyle(
-              fontSize: 11,
-              color: Colors.grey[600],
-              fontStyle: paused ? FontStyle.italic : FontStyle.normal,
-            ),
+            label,
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
             overflow: TextOverflow.ellipsis,
           ),
           if (!isComplete) ...[
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _CtrlBtn(
-                    label: paused ? 'Resume' : 'Pause',
-                    icon: paused ? Icons.play_arrow : Icons.pause,
-                    onTap: paused ? service.resumeJob : service.pauseJob,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _CtrlBtn(
-                    label: 'Stop',
-                    icon: Icons.stop,
-                    onTap: service.stopJob,
-                    danger: true,
-                  ),
-                ),
-              ],
+            FilledButton.icon(
+              onPressed: service.stopJob,
+              icon: const Icon(Icons.stop, size: 16),
+              label: const Text('STOP'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                textStyle: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w700),
+              ),
             ),
           ],
         ],
@@ -201,46 +261,3 @@ class RunPanel extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-
-class _CtrlBtn extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  final bool danger;
-
-  const _CtrlBtn({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-    this.danger = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = danger ? Colors.red.shade700 : Colors.grey[800]!;
-    return Material(
-      color: danger ? Colors.red.shade50 : Colors.grey[200],
-      borderRadius: BorderRadius.circular(5),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(5),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 4),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: color)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

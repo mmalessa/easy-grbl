@@ -129,5 +129,33 @@ class GcodeGenerator {
     }
   }
 
+  /// Returns the SVG-space bounding rect of all enabled active-operation paths,
+  /// or null when no active paths exist.
+  static Rect? computeActiveBounds(SvgDocument doc) {
+    Rect? bounds;
+    void walk(List<SvgNode> nodes, bool pe, OperationType? iop, SvgAffine pm) {
+      for (final n in nodes) {
+        if (!n.enabled || !pe) continue;
+        final m = pm.multiply(SvgAffine.fromSvgString(n.transform));
+        final own = n.settings.operationType;
+        final eff = own != OperationType.skip ? own : iop;
+        if (n.pathData != null && eff != null && eff != OperationType.skip) {
+          try {
+            final path =
+                parseSvgPathData(n.pathData!).transform(m.toFloat64());
+            final b = path.getBounds();
+            if (!b.isEmpty) {
+              bounds = bounds == null ? b : bounds!.expandToInclude(b);
+            }
+          } catch (_) {}
+        }
+        walk(n.children, n.enabled, eff, m);
+      }
+    }
+
+    walk(doc.roots, true, null, SvgAffine.identity);
+    return bounds;
+  }
+
   static String _f(double v) => v.toStringAsFixed(3);
 }
