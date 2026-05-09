@@ -7,8 +7,6 @@ import 'svg_document_painter.dart';
 class SvgPreviewWidget extends StatefulWidget {
   final SvgDocument? document;
   final Offset? machinePos;
-  /// SVG-space bounding rect to show as a dashed frame overlay.
-  final Rect? frameBounds;
   /// Pre-computed toolpath to optionally overlay on the canvas.
   final ToolpathData? toolpath;
   /// Double-click callback — receives machine coordinates (X right, Y up).
@@ -18,7 +16,6 @@ class SvgPreviewWidget extends StatefulWidget {
     super.key,
     this.document,
     this.machinePos,
-    this.frameBounds,
     this.toolpath,
     this.onJogTo,
   });
@@ -221,7 +218,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
                     document: widget.document!,
                     machinePos: widget.machinePos,
                     showGrid: _showGrid,
-                    frameBounds: widget.frameBounds,
                     toolpath: _showToolpath ? widget.toolpath : null,
                   ),
                 ),

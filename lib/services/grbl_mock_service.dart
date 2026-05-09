@@ -246,46 +246,6 @@ class GrblMockService extends GrblService {
     }
   }
 
-  // ── Framing ──────────────────────────────────────────────────────
-
-  @override
-  void startFraming(Rect b) {
-    if (isFraming || isJobRunning) return;
-    logTx('; frame ${_f(b.left)},${_f(b.top)} → ${_f(b.right)},${_f(b.bottom)}');
-    isFraming = true;
-    notifyListeners();
-    _doFraming(b);
-  }
-
-  @override
-  void stopFraming() {
-    if (!isFraming) return;
-    isFraming = false;
-    notifyListeners();
-  }
-
-  // Corners: bottom-left → bottom-right → top-right → top-left → back.
-  void _doFraming(Rect b) async {
-    final corners = [
-      Offset(b.left, b.top),
-      Offset(b.right, b.top),
-      Offset(b.right, b.bottom),
-      Offset(b.left, b.bottom),
-      Offset(b.left, b.top),
-    ];
-    for (final c in corners) {
-      if (!isFraming) return;
-      await Future.delayed(const Duration(milliseconds: 350));
-      if (!isFraming) return;
-      logTx('G0 X${_f(c.dx)} Y${_f(c.dy)}'); logRx('ok');
-      x = c.dx;
-      y = c.dy;
-      notifyListeners();
-    }
-    isFraming = false;
-    notifyListeners();
-  }
-
   static String _f(double v) => v.toStringAsFixed(3);
   double _round(double v) => (v * 1000).roundToDouble() / 1000;
 

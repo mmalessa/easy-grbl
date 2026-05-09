@@ -60,7 +60,6 @@ abstract class GrblService extends ChangeNotifier {
   bool get isIdle => connected && status == MachineStatus.idle;
   bool get isJobRunning => status == MachineStatus.run;
   bool get isJobPaused;
-  bool isFraming = false;
 
   // ── Concrete helpers (shared by all implementations) ─────────────
 
@@ -94,8 +93,6 @@ abstract class GrblService extends ChangeNotifier {
     return (paths: paths, passes: passes);
   }
 
-  /// Update machine status and notify listeners.
-  /// Any non-idle transition clears the jobJustCompleted flag.
   void setMachineStatus(MachineStatus s) {
     status = s;
     notifyListeners();
@@ -110,9 +107,4 @@ abstract class GrblService extends ChangeNotifier {
   void pauseJob();
   void resumeJob();
   void stopJob();
-
-  /// Trace the bounding rectangle with laser off. [machineBounds] is in machine
-  /// coordinates where (left, top) = (min X, min Y) and Y increases upward.
-  void startFraming(Rect machineBounds);
-  void stopFraming();
 }

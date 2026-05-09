@@ -1,25 +1,17 @@
 import 'package:flutter/material.dart';
-import 'dart:ui' show Rect;
 import '../models/svg_document.dart';
 import '../services/grbl_service.dart';
-import '../services/gcode_generator.dart';
 
 class RunPanel extends StatelessWidget {
   final SvgDocument? document;
   final GrblService service;
   final VoidCallback? onExportGcode;
-  final void Function(Rect svgBounds)? onFrame;
-  // Non-null only when the frame overlay is currently visible — pressing the
-  // button again should hide it rather than start a new framing cycle.
-  final VoidCallback? onHideFrame;
 
   const RunPanel({
     super.key,
     required this.document,
     required this.service,
     this.onExportGcode,
-    this.onFrame,
-    this.onHideFrame,
   });
 
   @override
@@ -31,7 +23,6 @@ class RunPanel extends StatelessWidget {
           return _hint('Load an SVG file to run a job.');
         }
         if (service.isJobRunning) return _running(context);
-        if (service.isFraming) return _framing(context);
         return _idle(context);
       },
     );
@@ -73,7 +64,6 @@ class RunPanel extends StatelessWidget {
     final roots = document!.roots;
     final (:paths, :passes) = service.countJobSteps(roots);
     final canRun = paths > 0 && service.isIdle;
-    final canFrame = paths > 0;
 
     final estimateSec = (passes * 5).clamp(1, 9999);
     final estLabel = estimateSec < 60
@@ -103,39 +93,6 @@ class RunPanel extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              if (onFrame != null) ...[
-                Tooltip(
-                  message: onHideFrame != null
-                      ? 'Hide frame'
-                      : 'Show frame on canvas'
-                          '${service.connected ? ' & trace with machine' : ''}',
-                  child: _IconBtn(
-                    icon: Icons.crop_free,
-                    color: onHideFrame != null
-                        ? Colors.orange.shade700
-                        : const Color(0xFF6A1B9A),
-                    enabled: canFrame,
-                    onTap: onHideFrame ??
-                        () {
-                          final b =
-                              GcodeGenerator.computeActiveBounds(document!);
-                          if (b != null) {
-                            onFrame!(b);
-                            if (service.connected) {
-                              final vb = document!.viewBox;
-                              service.startFraming(Rect.fromLTRB(
-                                b.left - vb.left,
-                                vb.bottom - b.bottom,
-                                b.right - vb.left,
-                                vb.bottom - b.top,
-                              ));
-                            }
-                          }
-                        },
-                  ),
-                ),
-                const SizedBox(width: 6),
-              ],
               Expanded(
                 child: FilledButton.icon(
                   onPressed: canRun ? () => service.startJob(document!) : null,
@@ -161,35 +118,6 @@ class RunPanel extends StatelessWidget {
                 ),
               ],
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _framing(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(children: [
-            Icon(Icons.crop_free, size: 12, color: Colors.purple[600]),
-            const SizedBox(width: 5),
-            Text('Framing...',
-                style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-          ]),
-          const SizedBox(height: 8),
-          FilledButton.icon(
-            onPressed: service.stopFraming,
-            icon: const Icon(Icons.stop, size: 16),
-            label: const Text('Stop Framing'),
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.grey[700],
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              textStyle:
-                  const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
           ),
         ],
       ),

@@ -11,8 +11,6 @@ class SvgDocumentPainter extends CustomPainter {
   final SvgDocument document;
   final Offset? machinePos;
   final bool showGrid;
-  /// SVG-space bounding rect of active paths; drawn as dashed overlay when set.
-  final Rect? frameBounds;
   /// Pre-computed toolpath to overlay on the canvas.
   final ToolpathData? toolpath;
 
@@ -20,7 +18,6 @@ class SvgDocumentPainter extends CustomPainter {
     required this.document,
     this.machinePos,
     this.showGrid = false,
-    this.frameBounds,
     this.toolpath,
   });
 
@@ -67,11 +64,6 @@ class SvgDocumentPainter extends CustomPainter {
 
     // Toolpath overlay (actual tool movement preview)
     if (toolpath != null) _paintToolpath(canvas, toolpath!, scale);
-
-    // Frame overlay (dashed bounding rect of active paths)
-    if (frameBounds != null) {
-      _paintFrameOverlay(canvas, frameBounds!, scale);
-    }
 
     // Machine crosshair — convert machine coords (origin at bottom-left) to SVG coords
     if (machinePos != null) {
@@ -132,49 +124,6 @@ class SvgDocumentPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.3 / scale,
     );
-  }
-
-  void _paintFrameOverlay(Canvas canvas, Rect bounds, double scale) {
-    // Semi-transparent fill
-    canvas.drawRect(
-      bounds,
-      Paint()..color = const Color(0xFF1565C0).withValues(alpha: 0.06),
-    );
-
-    // Dashed stroke
-    final sw = 1.5 / scale;
-    final dash = 5.0 / scale;
-    final gap = 3.0 / scale;
-    final framePaint = Paint()
-      ..color = const Color(0xFF1E88E5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = sw;
-
-    final path = Path()..addRect(bounds);
-    final dashed = dashPath(
-        path, dashArray: CircularIntervalList<double>([dash, gap]));
-    canvas.drawPath(dashed, framePaint);
-
-    // Corner L-markers
-    final ml = 6.0 / scale;
-    final markerPaint = Paint()
-      ..color = const Color(0xFF1E88E5)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = sw * 1.8
-      ..strokeCap = StrokeCap.square;
-
-    for (final c in [
-      (x: bounds.left, y: bounds.top, sx: 1.0, sy: 1.0),
-      (x: bounds.right, y: bounds.top, sx: -1.0, sy: 1.0),
-      (x: bounds.right, y: bounds.bottom, sx: -1.0, sy: -1.0),
-      (x: bounds.left, y: bounds.bottom, sx: 1.0, sy: -1.0),
-    ]) {
-      final p = Path()
-        ..moveTo(c.x + c.sx * ml, c.y)
-        ..lineTo(c.x, c.y)
-        ..lineTo(c.x, c.y + c.sy * ml);
-      canvas.drawPath(p, markerPaint);
-    }
   }
 
   void _paintCrosshair(Canvas canvas, Offset pos, double scale) {

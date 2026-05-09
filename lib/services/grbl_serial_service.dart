@@ -15,7 +15,6 @@ class GrblSerialService extends GrblService {
   // Job streaming
   bool _jobPaused = false;
   bool _jobCancelled = false;
-  bool _framingCancelled = false;
   Completer<bool>? _ackCompleter;
 
   @override
@@ -71,7 +70,6 @@ class GrblSerialService extends GrblService {
   @override
   void disconnect() {
     _jobCancelled = true;
-    _framingCancelled = true;
     _ackCompleter?.complete(false);
     _ackCompleter = null;
     _pollTimer?.cancel();
@@ -268,52 +266,6 @@ class GrblSerialService extends GrblService {
     _ackCompleter?.complete(false);
     _ackCompleter = null;
     _sendByte(0x18); // GRBL soft reset
-  }
-
-  // ── Framing (G0 trace with laser off) ───────────────────────────
-
-  @override
-  void startFraming(Rect b) {
-    if (isFraming || isJobRunning) return;
-    _framingCancelled = false;
-    _doFraming(b);
-  }
-
-  @override
-  void stopFraming() {
-    if (!isFraming) return;
-    _framingCancelled = true;
-    _ackCompleter?.complete(false);
-    _ackCompleter = null;
-    isFraming = false;
-    notifyListeners();
-  }
-
-  void _doFraming(Rect b) async {
-    String f(double v) => v.toStringAsFixed(3);
-    final lines = [
-      'M5 S0',
-      'G0 X${f(b.left)} Y${f(b.top)}',
-      'G0 X${f(b.right)} Y${f(b.top)}',
-      'G0 X${f(b.right)} Y${f(b.bottom)}',
-      'G0 X${f(b.left)} Y${f(b.bottom)}',
-      'G0 X${f(b.left)} Y${f(b.top)}',
-      'G0 X0 Y0',
-    ];
-
-    isFraming = true;
-    notifyListeners();
-
-    for (final line in lines) {
-      if (_framingCancelled) break;
-      _sendRaw(line);
-      final ok = await _waitAck();
-      if (!ok || _framingCancelled) break;
-    }
-
-    _framingCancelled = false;
-    isFraming = false;
-    notifyListeners();
   }
 
   @override

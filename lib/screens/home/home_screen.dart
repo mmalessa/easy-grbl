@@ -31,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
   SvgNode? _selectedNode;
   GrblService _grbl = GrblMockService();
   final List<RecentFile> _recentFiles = [];
-  Rect? _frameBounds; // SVG-space bounding rect for canvas overlay
   ToolpathData? _toolpath;
 
   @override
@@ -112,19 +111,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _document = doc;
       _filename = filename;
       _selectedNode = null;
-      _frameBounds = null;
       _toolpath = computeToolpath(doc);
     });
-  }
-
-  // ── Framing ──────────────────────────────────────────────────────
-
-  void _onFrame(Rect svgBounds) {
-    setState(() => _frameBounds = svgBounds);
-  }
-
-  void _clearFrame() {
-    setState(() => _frameBounds = null);
   }
 
   // ── G-code export ────────────────────────────────────────────────
@@ -241,7 +229,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         machinePos: _grbl.connected
                             ? Offset(_grbl.x, _grbl.y)
                             : null,
-                        frameBounds: _frameBounds,
                         toolpath: _toolpath,
                         onJogTo: _grbl.connected
                             ? (mx, my) {
@@ -259,8 +246,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         service: _grbl,
                         onExportGcode:
                             _document != null ? _exportGcode : null,
-                        onFrame: _document != null ? _onFrame : null,
-                        onHideFrame: _frameBounds != null ? _clearFrame : null,
                       ),
                     ),
                   ],
