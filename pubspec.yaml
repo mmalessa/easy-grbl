@@ -37,6 +37,7 @@ dependencies:
   flutter_svg: ^2.2.2
   file_selector: ^1.0.4
   path_drawing: ^1.0.1
+  xml: ^6.5.0
 
 dev_dependencies:
   flutter_test:
