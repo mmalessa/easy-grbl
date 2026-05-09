@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/svg_document.dart';
 import '../services/grbl_service.dart';
 import 'jog_panel.dart';
+import 'position_panel.dart';
 import 'run_panel.dart';
 import 'panel_section_header.dart';
 
@@ -40,6 +41,14 @@ class RightPanel extends StatelessWidget {
             onExportGcode: onExportGcode,
             onFrame: onFrame,
           ),
+
+          // ── Position ─────────────────────────────────────────────────
+          const Divider(height: 1, thickness: 1),
+          PanelSectionHeader(
+            title: 'Position',
+            icon: Icons.my_location_outlined,
+          ),
+          PositionPanel(service: service),
 
           // ── Jog ──────────────────────────────────────────────────────
           const Divider(height: 1, thickness: 1),

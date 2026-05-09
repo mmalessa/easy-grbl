@@ -21,10 +21,6 @@ class JogPanel extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ── Position display ──────────────────────────────
-              _PositionDisplay(service: service),
-              const SizedBox(height: 10),
-
               // ── XY pad + Z buttons side by side ──────────────
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -100,96 +96,6 @@ class JogPanel extends StatelessWidget {
           ),
         );
       },
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _PositionDisplay extends StatelessWidget {
-  final GrblService service;
-  const _PositionDisplay({required this.service});
-
-  @override
-  Widget build(BuildContext context) {
-    final connected = service.connected;
-    final rgb = service.status.rgb;
-    final statusColor = connected
-        ? Color.fromRGBO(rgb.r, rgb.g, rgb.b, 1)
-        : Colors.grey;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: Colors.grey[900],
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              _Coord(label: 'X', value: service.x, dim: !connected),
-              const SizedBox(width: 6),
-              _Coord(label: 'Y', value: service.y, dim: !connected),
-              const SizedBox(width: 6),
-              _Coord(label: 'Z', value: service.z, dim: !connected),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.2),
-                  border: Border.all(color: statusColor, width: 0.8),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(
-                  connected ? service.status.label : 'OFFLINE',
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _Coord extends StatelessWidget {
-  final String label;
-  final double value;
-  final bool dim;
-  const _Coord({required this.label, required this.value, this.dim = false});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Row(
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  color: Colors.grey, fontSize: 10, fontWeight: FontWeight.w600)),
-          const SizedBox(width: 3),
-          Text(
-            value.toStringAsFixed(3),
-            style: TextStyle(
-              color: dim ? Colors.grey[700] : Colors.white,
-              fontSize: 12,
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
