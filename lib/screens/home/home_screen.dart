@@ -16,6 +16,7 @@ import '../../widgets/connect_dialog.dart';
 import '../../widgets/main_app_bar.dart';
 import '../../widgets/gcode_dialog.dart';
 import '../../widgets/svg_preview_widget.dart';
+import '../../widgets/left_panel.dart';
 import '../../widgets/right_panel.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -234,6 +235,17 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: Row(
                   children: [
+                    SizedBox(
+                      width: 290,
+                      child: LeftPanel(
+                        document: _document,
+                        selectedNode: _selectedNode,
+                        onToggleEnabled: _toggleEnabled,
+                        onSelect: _selectNode,
+                        onSettingsChanged: _onSettingsChanged,
+                      ),
+                    ),
+                    const VerticalDivider(width: 1, thickness: 1),
                     Expanded(
                       child: SvgPreviewWidget(
                         document: _document,
@@ -252,11 +264,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       width: 290,
                       child: RightPanel(
                         document: _document,
-                        selectedNode: _selectedNode,
                         service: _grbl,
-                        onToggleEnabled: _toggleEnabled,
-                        onSelect: _selectNode,
-                        onSettingsChanged: _onSettingsChanged,
                         onExportGcode:
                             _document != null ? _exportGcode : null,
                         onFrame: _document != null ? _onFrame : null,

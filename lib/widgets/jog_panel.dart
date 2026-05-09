@@ -25,25 +25,44 @@ class JogPanel extends StatelessWidget {
               _PositionDisplay(service: service),
               const SizedBox(height: 10),
 
-              // ── XY jog pad ────────────────────────────────────
-              _JogPad(service: service, enabled: enabled, step: step),
+              // ── XY pad + Z buttons side by side ──────────────
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _JogPad(service: service, enabled: enabled, step: step),
+                  const SizedBox(width: 16),
+                  Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _JogBtn(
+                        label: 'Z+',
+                        enabled: enabled,
+                        onTap: () => service.jog(0, 0, stepZ),
+                      ),
+                      const SizedBox(height: 4),
+                      _JogBtn(
+                        label: 'Z−',
+                        enabled: enabled,
+                        onTap: () => service.jog(0, 0, -stepZ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
               const SizedBox(height: 6),
 
-              // ── Z axis + Z step ───────────────────────────────
+              // ── XY + Z step selectors ─────────────────────────
               Row(
                 children: [
-                  _JogBtn(
-                    label: 'Z+',
-                    enabled: enabled,
-                    onTap: () => service.jog(0, 0, stepZ),
+                  Expanded(
+                    child: _StepSelector(
+                      label: 'XY',
+                      current: step,
+                      onSelect: service.setStep,
+                    ),
                   ),
                   const SizedBox(width: 4),
-                  _JogBtn(
-                    label: 'Z−',
-                    enabled: enabled,
-                    onTap: () => service.jog(0, 0, -stepZ),
-                  ),
-                  const SizedBox(width: 8),
                   Expanded(
                     child: _StepSelector(
                       label: 'Z',
@@ -52,14 +71,6 @@ class JogPanel extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 6),
-
-              // ── XY step selector ──────────────────────────────
-              _StepSelector(
-                label: 'XY',
-                current: step,
-                onSelect: service.setStep,
               ),
               const SizedBox(height: 10),
 
@@ -328,7 +339,7 @@ class _StepSelector extends StatelessWidget {
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
                   decoration: BoxDecoration(
                     color: current == s
                         ? Theme.of(context).colorScheme.primary
