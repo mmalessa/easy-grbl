@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui' show Rect;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
@@ -231,7 +230,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           body: Column(
             children: [
-              _StatusBar(filename: _filename, grbl: _grbl),
               Expanded(
                 child: Row(
                   children: [
@@ -277,125 +275,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-
-class _StatusBar extends StatelessWidget {
-  final String filename;
-  final GrblService grbl;
-  const _StatusBar({required this.filename, required this.grbl});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
-      color: Colors.grey[850] ?? const Color(0xFF212121),
-      child: Row(
-        children: [
-          Text(
-            filename.isEmpty ? 'No file loaded' : filename,
-            style: TextStyle(
-              fontSize: 11,
-              color: filename.isEmpty ? Colors.grey[600] : Colors.grey[400],
-            ),
-          ),
-          const Spacer(),
-          if (grbl.connected) ...[
-            _PosLabel('X', grbl.x),
-            const SizedBox(width: 10),
-            _PosLabel('Y', grbl.y),
-            const SizedBox(width: 10),
-            _PosLabel('Z', grbl.z),
-            const SizedBox(width: 12),
-            _StatusChip(grbl: grbl),
-          ] else
-            _OfflineChip(),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  final GrblService grbl;
-  const _StatusChip({required this.grbl});
-
-  @override
-  Widget build(BuildContext context) {
-    final rgb = grbl.status.rgb;
-    final statusColor = Color.fromRGBO(rgb.r, rgb.g, rgb.b, 1);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: statusColor.withValues(alpha: 0.2),
-        border: Border.all(color: statusColor, width: 0.8),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Text(
-        grbl.status.label,
-        style: TextStyle(
-          color: statusColor,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-}
-
-class _OfflineChip extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: Colors.grey.withValues(alpha: 0.15),
-        border: Border.all(color: Colors.grey, width: 0.8),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: const Text(
-        'OFFLINE',
-        style: TextStyle(
-          color: Colors.grey,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 0.8,
-        ),
-      ),
-    );
-  }
-}
-
-class _PosLabel extends StatelessWidget {
-  final String axis;
-  final double value;
-  const _PosLabel(this.axis, this.value);
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          '$axis:',
-          style: const TextStyle(
-              fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(width: 3),
-        Text(
-          value.toStringAsFixed(3),
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.white70,
-            fontFamily: 'monospace',
-          ),
-        ),
-      ],
     );
   }
 }
