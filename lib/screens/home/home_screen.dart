@@ -123,6 +123,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _frameBounds = svgBounds);
   }
 
+  void _clearFrame() {
+    setState(() => _frameBounds = null);
+  }
+
   // ── G-code export ────────────────────────────────────────────────
 
   void _exportGcode() {
@@ -266,6 +270,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onExportGcode:
                             _document != null ? _exportGcode : null,
                         onFrame: _document != null ? _onFrame : null,
+                        onHideFrame: _frameBounds != null ? _clearFrame : null,
                       ),
                     ),
                   ],

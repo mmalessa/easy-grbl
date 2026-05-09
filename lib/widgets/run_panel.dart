@@ -8,8 +8,10 @@ class RunPanel extends StatelessWidget {
   final SvgDocument? document;
   final GrblService service;
   final VoidCallback? onExportGcode;
-  /// Called with the SVG-space bounds when the Frame button is pressed.
   final void Function(Rect svgBounds)? onFrame;
+  // Non-null only when the frame overlay is currently visible — pressing the
+  // button again should hide it rather than start a new framing cycle.
+  final VoidCallback? onHideFrame;
 
   const RunPanel({
     super.key,
@@ -17,6 +19,7 @@ class RunPanel extends StatelessWidget {
     required this.service,
     this.onExportGcode,
     this.onFrame,
+    this.onHideFrame,
   });
 
   @override
@@ -106,27 +109,33 @@ class RunPanel extends StatelessWidget {
             children: [
               if (onFrame != null) ...[
                 Tooltip(
-                  message: 'Show frame on canvas'
-                      '${service.connected ? ' & trace with machine' : ''}',
+                  message: onHideFrame != null
+                      ? 'Hide frame'
+                      : 'Show frame on canvas'
+                          '${service.connected ? ' & trace with machine' : ''}',
                   child: _IconBtn(
                     icon: Icons.crop_free,
-                    color: const Color(0xFF6A1B9A),
+                    color: onHideFrame != null
+                        ? Colors.orange.shade700
+                        : const Color(0xFF6A1B9A),
                     enabled: canFrame,
-                    onTap: () {
-                      final b = GcodeGenerator.computeActiveBounds(document!);
-                      if (b != null) {
-                        onFrame!(b);
-                        if (service.connected) {
-                          final vb = document!.viewBox;
-                          service.startFraming(Rect.fromLTRB(
-                            b.left - vb.left,
-                            vb.bottom - b.bottom,
-                            b.right - vb.left,
-                            vb.bottom - b.top,
-                          ));
-                        }
-                      }
-                    },
+                    onTap: onHideFrame ??
+                        () {
+                          final b =
+                              GcodeGenerator.computeActiveBounds(document!);
+                          if (b != null) {
+                            onFrame!(b);
+                            if (service.connected) {
+                              final vb = document!.viewBox;
+                              service.startFraming(Rect.fromLTRB(
+                                b.left - vb.left,
+                                vb.bottom - b.bottom,
+                                b.right - vb.left,
+                                vb.bottom - b.top,
+                              ));
+                            }
+                          }
+                        },
                   ),
                 ),
                 const SizedBox(width: 6),

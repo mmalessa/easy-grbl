@@ -11,6 +11,7 @@ class RightPanel extends StatelessWidget {
   final GrblService service;
   final VoidCallback? onExportGcode;
   final void Function(Rect svgBounds)? onFrame;
+  final VoidCallback? onHideFrame;
 
   const RightPanel({
     super.key,
@@ -18,6 +19,7 @@ class RightPanel extends StatelessWidget {
     required this.service,
     this.onExportGcode,
     this.onFrame,
+    this.onHideFrame,
   });
 
   @override
@@ -40,6 +42,7 @@ class RightPanel extends StatelessWidget {
             service: service,
             onExportGcode: onExportGcode,
             onFrame: onFrame,
+            onHideFrame: onHideFrame,
           ),
 
           // ── Position ─────────────────────────────────────────────────
