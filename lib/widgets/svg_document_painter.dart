@@ -180,22 +180,26 @@ class SvgDocumentPainter extends CustomPainter {
   void _paintCrosshair(Canvas canvas, Offset pos, double scale) {
     final vb = document.viewBox;
     final linePaint = Paint()
-      ..color = const Color(0xBBFF3333)
-      ..strokeWidth = 0.4 / scale
+      ..color = const Color(0xCCFF3333)
+      ..strokeWidth = 1.0 / scale
       ..style = PaintingStyle.stroke;
 
-    // Horizontal + vertical hair lines
-    canvas.drawLine(Offset(vb.left, pos.dy), Offset(vb.right, pos.dy), linePaint);
-    canvas.drawLine(Offset(pos.dx, vb.top), Offset(pos.dx, vb.bottom), linePaint);
+    // Horizontal + vertical hair lines (extend 8mm beyond work area so they're
+    // visible even when the tool is at the border)
+    const ext = 8.0;
+    canvas.drawLine(
+        Offset(vb.left - ext, pos.dy), Offset(vb.right + ext, pos.dy), linePaint);
+    canvas.drawLine(
+        Offset(pos.dx, vb.top - ext), Offset(pos.dx, vb.bottom + ext), linePaint);
 
-    // Small circle at position
+    // Circle at position
     canvas.drawCircle(
       pos,
-      1.8 / scale,
+      4.0 / scale,
       Paint()
         ..color = const Color(0xFFFF3333)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.5 / scale,
+        ..strokeWidth = 1.5 / scale,
     );
   }
 

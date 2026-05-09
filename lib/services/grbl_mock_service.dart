@@ -1,13 +1,20 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
+import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import 'affine.dart';
 import 'grbl_service.dart';
+
+// label is empty for rapid-move steps (cursor jumps to path start without
+// updating the displayed label).
+typedef _Step = ({String label, double x, double y});
 
 class GrblMockService extends GrblService {
   bool _jobPaused = false;
-  List<String> _jobSteps = [];
+  List<_Step> _jobSteps = [];
   Timer? _jobTimer;
 
   @override
@@ -16,8 +23,11 @@ class GrblMockService extends GrblService {
   // ── Connection ───────────────────────────────────────────────────
 
   void connect() {
-    connected = true;
-    notifyListeners();
+    // Simulate GRBL handshake + version string
+    Future.delayed(const Duration(milliseconds: 320), () {
+      connected = true;
+      notifyListeners();
+    });
   }
 
   @override
@@ -53,8 +63,11 @@ class GrblMockService extends GrblService {
   @override
   void setOrigin() {
     if (!isIdle) return;
-    x = 0; y = 0; z = 0;
-    notifyListeners();
+    // Simulate G92/G10 round-trip
+    Future.delayed(const Duration(milliseconds: 60), () {
+      x = 0; y = 0; z = 0;
+      notifyListeners();
+    });
   }
 
   // ── Job execution ────────────────────────────────────────────────
@@ -62,7 +75,7 @@ class GrblMockService extends GrblService {
   @override
   void startJob(SvgDocument document) {
     if (!isIdle) return;
-    _jobSteps = _collectSteps(document.roots);
+    _jobSteps = _collectSteps(document);
     if (_jobSteps.isEmpty) return;
     jobProgress = 0.0;
     jobCurrentStep = 0;
@@ -104,41 +117,84 @@ class GrblMockService extends GrblService {
       jobCurrentStep = 0;
       jobCurrentLabel = '';
       _jobPaused = false;
-      // Transition to idle and mark completion in one notification.
       status = MachineStatus.idle;
       jobJustCompleted = true;
       notifyListeners();
       return;
     }
-    jobCurrentLabel = _jobSteps[jobCurrentStep];
+    final step = _jobSteps[jobCurrentStep];
+    // Only update the displayed label on feed-move steps, not rapid moves.
+    if (step.label.isNotEmpty) jobCurrentLabel = step.label;
     jobProgress = jobCurrentStep / _jobSteps.length;
+    x = step.x;
+    y = step.y;
     notifyListeners();
-    _jobTimer = Timer(const Duration(milliseconds: 500), () {
+    _jobTimer = Timer(const Duration(milliseconds: 40), () {
       jobCurrentStep++;
       _advance();
     });
   }
 
-  List<String> _collectSteps(List<SvgNode> roots) {
-    final steps = <String>[];
-    void walk(List<SvgNode> nodes, bool pe, OperationType? iop) {
+  // ── Step collection ───────────────────────────────────────────────
+
+  List<_Step> _collectSteps(SvgDocument doc) {
+    final steps = <_Step>[];
+
+    void walk(List<SvgNode> nodes, bool pe, OperationType? iop, SvgAffine pm) {
       for (final n in nodes) {
         if (!n.enabled || !pe) continue;
+        final m = pm.multiply(SvgAffine.fromSvgString(n.transform));
         final own = n.settings.operationType;
         final eff = own != OperationType.skip ? own : iop;
         if (n.pathData != null && eff != null && eff != OperationType.skip) {
-          final p = n.settings.passes;
-          for (var i = 0; i < p; i++) {
-            steps.add(p > 1
-                ? '${eff.label}: ${n.label} (pass ${i + 1}/$p)'
-                : '${eff.label}: ${n.label}');
+          final passes = n.settings.passes;
+          for (var pass = 0; pass < passes; pass++) {
+            final pts = _samplePath(n.pathData!, m, doc.viewBox);
+            if (pts.isEmpty) continue;
+            // Rapid move to start of path (no label — cursor jumps silently)
+            steps.add((label: '', x: pts.first.dx, y: pts.first.dy));
+            final label = passes > 1
+                ? '${eff.label}: ${n.label} (pass ${pass + 1}/$passes)'
+                : '${eff.label}: ${n.label}';
+            for (final pt in pts) {
+              steps.add((label: label, x: pt.dx, y: pt.dy));
+            }
           }
         }
-        walk(n.children, n.enabled, eff);
+        walk(n.children, n.enabled, eff, m);
       }
     }
-    walk(roots, true, null);
+
+    walk(doc.roots, true, null, SvgAffine.identity);
     return steps;
+  }
+
+  // Sample ~20 evenly-spaced points from all contours of a path, transformed
+  // to machine coordinates (origin at bottom-left, Y-up).
+  List<Offset> _samplePath(String pathData, SvgAffine xform, Rect vb) {
+    try {
+      final path = parseSvgPathData(pathData);
+      final metrics = path.computeMetrics().toList();
+      if (metrics.isEmpty) return [];
+
+      const totalPoints = 20;
+      final perContour = math.max(3, totalPoints ~/ math.max(1, metrics.length));
+      final pts = <Offset>[];
+
+      for (final metric in metrics) {
+        for (var i = 0; i <= perContour; i++) {
+          final d = metric.length * i / perContour;
+          final t = metric.getTangentForOffset(d);
+          if (t != null) {
+            final tp = xform.apply(t.position);
+            pts.add(Offset(tp.dx - vb.left, vb.bottom - tp.dy));
+          }
+        }
+      }
+      return pts;
+    } catch (_) {
+      return [];
+    }
   }
 
   // ── Framing ──────────────────────────────────────────────────────
@@ -159,7 +215,6 @@ class GrblMockService extends GrblService {
   }
 
   // Corners: bottom-left → bottom-right → top-right → top-left → back.
-  // In machine coords Rect, top=minY (bottom edge), bottom=maxY (top edge).
   void _doFraming(Rect b) async {
     final corners = [
       Offset(b.left, b.top),
