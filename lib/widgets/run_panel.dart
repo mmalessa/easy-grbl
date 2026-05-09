@@ -5,8 +5,14 @@ import '../services/grbl_mock_service.dart';
 class RunPanel extends StatelessWidget {
   final SvgDocument? document;
   final GrblMockService service;
+  final VoidCallback? onExportGcode;
 
-  const RunPanel({super.key, required this.document, required this.service});
+  const RunPanel({
+    super.key,
+    required this.document,
+    required this.service,
+    this.onExportGcode,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -61,19 +67,45 @@ class RunPanel extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // Start button
-          FilledButton.icon(
-            onPressed: canRun ? () => service.startJob(roots) : null,
-            icon: const Icon(Icons.play_arrow, size: 16),
-            label: const Text('Start Job'),
-            style: FilledButton.styleFrom(
-              backgroundColor: const Color(0xFF388E3C),
-              disabledBackgroundColor: Colors.grey[200],
-              disabledForegroundColor: Colors.grey[500],
-              padding: const EdgeInsets.symmetric(vertical: 10),
-              textStyle: const TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600),
-            ),
+          // Start + Export buttons
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: canRun ? () => service.startJob(roots) : null,
+                  icon: const Icon(Icons.play_arrow, size: 16),
+                  label: const Text('Start Job'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF388E3C),
+                    disabledBackgroundColor: Colors.grey[200],
+                    disabledForegroundColor: Colors.grey[500],
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    textStyle: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              if (onExportGcode != null) ...[
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: 'Export G-code',
+                  child: Material(
+                    color: Colors.grey[200],
+                    borderRadius: BorderRadius.circular(5),
+                    child: InkWell(
+                      onTap: onExportGcode,
+                      borderRadius: BorderRadius.circular(5),
+                      child: const SizedBox(
+                        width: 38,
+                        height: 40,
+                        child: Icon(Icons.code, size: 18,
+                            color: Color(0xFF1565C0)),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
         ],
       ),

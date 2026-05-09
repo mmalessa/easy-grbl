@@ -7,7 +7,9 @@ import '../../models/svg_node.dart';
 import '../../models/layer_settings.dart';
 import '../../services/svg_tree_parser.dart';
 import '../../services/grbl_mock_service.dart';
+import '../../services/gcode_generator.dart';
 import '../../widgets/main_app_bar.dart';
+import '../../widgets/gcode_dialog.dart';
 import '../../widgets/svg_preview_widget.dart';
 import '../../widgets/right_panel.dart';
 
@@ -73,6 +75,14 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  // ── G-code export ────────────────────────────────────────────────
+
+  void _exportGcode() {
+    if (_document == null) return;
+    final gcode = GcodeGenerator.generate(_document!, _filename);
+    showGcodeDialog(context, gcode, _filename);
+  }
+
   // ── Node selection ───────────────────────────────────────────────
 
   void _toggleEnabled(SvgNode node) {
@@ -89,6 +99,19 @@ class _HomeScreenState extends State<HomeScreen> {
         _selectedNode = node;
       }
     });
+  }
+
+  void _onCanvasSelect(SvgNode? node) {
+    if (node == null) {
+      if (_selectedNode != null) {
+        setState(() {
+          _deselectAll(_document!.roots);
+          _selectedNode = null;
+        });
+      }
+    } else {
+      _selectNode(node);
+    }
   }
 
   void _onSettingsChanged(SvgNode node, LayerSettings settings) {
@@ -145,6 +168,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onOpenFile: _openFile,
             recentFiles: _recentFiles,
             onOpenRecent: _openRecentFile,
+            onExportGcode: _document != null ? _exportGcode : null,
             isConnected: _grbl.connected,
             onToggleConnect: () => _grbl.connected
                 ? _grbl.disconnect()
@@ -162,6 +186,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: SvgPreviewWidget(
                         document: _document,
                         machinePos: Offset(_grbl.x, _grbl.y),
+                        onCanvasSelect: _document != null
+                            ? _onCanvasSelect
+                            : null,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),
@@ -174,6 +201,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         onToggleEnabled: _toggleEnabled,
                         onSelect: _selectNode,
                         onSettingsChanged: _onSettingsChanged,
+                        onExportGcode:
+                            _document != null ? _exportGcode : null,
                       ),
                     ),
                   ],

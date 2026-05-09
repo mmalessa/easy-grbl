@@ -9,8 +9,13 @@ import '../services/svg_transform.dart';
 class SvgDocumentPainter extends CustomPainter {
   final SvgDocument document;
   final Offset? machinePos;
+  final bool showGrid;
 
-  const SvgDocumentPainter({required this.document, this.machinePos});
+  const SvgDocumentPainter({
+    required this.document,
+    this.machinePos,
+    this.showGrid = false,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -33,6 +38,10 @@ class SvgDocumentPainter extends CustomPainter {
 
     // White work area
     canvas.drawRect(document.viewBox, Paint()..color = Colors.white);
+
+    // Grid
+    if (showGrid) _paintGrid(canvas, document.viewBox, scale);
+
     canvas.drawRect(
       document.viewBox,
       Paint()
@@ -55,6 +64,31 @@ class SvgDocumentPainter extends CustomPainter {
     }
 
     canvas.restore();
+  }
+
+  void _paintGrid(Canvas canvas, Rect vb, double scale) {
+    final minorPaint = Paint()
+      ..color = const Color(0xFF888888).withValues(alpha: 0.18)
+      ..strokeWidth = 0.4 / scale;
+    final majorPaint = Paint()
+      ..color = const Color(0xFF888888).withValues(alpha: 0.35)
+      ..strokeWidth = 0.4 / scale;
+
+    void drawLines(double interval, Paint p) {
+      var x = (vb.left / interval).ceil() * interval;
+      while (x <= vb.right) {
+        canvas.drawLine(Offset(x, vb.top), Offset(x, vb.bottom), p);
+        x += interval;
+      }
+      var y = (vb.top / interval).ceil() * interval;
+      while (y <= vb.bottom) {
+        canvas.drawLine(Offset(vb.left, y), Offset(vb.right, y), p);
+        y += interval;
+      }
+    }
+
+    drawLines(10, majorPaint);
+    if (scale >= 2.5) drawLines(1, minorPaint); // minor grid only when zoomed in
   }
 
   void _paintCrosshair(Canvas canvas, Offset pos, double scale) {

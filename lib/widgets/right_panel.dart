@@ -15,6 +15,7 @@ class RightPanel extends StatefulWidget {
   final void Function(SvgNode) onToggleEnabled;
   final void Function(SvgNode) onSelect;
   final void Function(SvgNode, LayerSettings) onSettingsChanged;
+  final VoidCallback? onExportGcode;
 
   const RightPanel({
     super.key,
@@ -24,6 +25,7 @@ class RightPanel extends StatefulWidget {
     required this.onToggleEnabled,
     required this.onSelect,
     required this.onSettingsChanged,
+    this.onExportGcode,
   });
 
   @override
@@ -112,6 +114,7 @@ class _RightPanelState extends State<RightPanel> {
                   RunPanel(
                     document: widget.document,
                     service: widget.service,
+                    onExportGcode: widget.onExportGcode,
                   ),
                 ],
               ),

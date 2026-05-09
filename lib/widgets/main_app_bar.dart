@@ -6,6 +6,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onOpenFile;
   final List<RecentFile> recentFiles;
   final void Function(String path, String name) onOpenRecent;
+  final VoidCallback? onExportGcode;
   final bool isConnected;
   final VoidCallback onToggleConnect;
   final VoidCallback onHomeAll;
@@ -16,6 +17,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onOpenFile,
     required this.recentFiles,
     required this.onOpenRecent,
+    this.onExportGcode,
     required this.isConnected,
     required this.onToggleConnect,
     required this.onHomeAll,
@@ -58,6 +60,14 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                             ),
                           ))
                       .toList(),
+                ),
+              ],
+              if (onExportGcode != null) ...[
+                const Divider(height: 1),
+                MenuItemButton(
+                  onPressed: onExportGcode,
+                  leadingIcon: const Icon(Icons.code, size: 16),
+                  child: const Text('Export G-code…'),
                 ),
               ],
             ],
