@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/svg_document.dart';
 import '../services/grbl_service.dart';
+import 'code_panel.dart';
 import 'jog_panel.dart';
 import 'position_panel.dart';
 import 'run_panel.dart';
@@ -29,10 +30,7 @@ class RightPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Spacer(),
-
           // ── Run Job ──────────────────────────────────────────────────
-          const Divider(height: 1, thickness: 1),
           PanelSectionHeader(
             title: 'Run Job',
             icon: Icons.play_circle_outline,
@@ -44,6 +42,14 @@ class RightPanel extends StatelessWidget {
             onFrame: onFrame,
             onHideFrame: onHideFrame,
           ),
+
+          // ── Code ─────────────────────────────────────────────────────
+          const Divider(height: 1, thickness: 1),
+          PanelSectionHeader(
+            title: 'Code',
+            icon: Icons.terminal,
+          ),
+          Expanded(child: CodePanel(service: service)),
 
           // ── Position ─────────────────────────────────────────────────
           const Divider(height: 1, thickness: 1),

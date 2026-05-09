@@ -16,6 +16,7 @@ class GrblMockService extends GrblService {
   bool _jobPaused = false;
   List<_Step> _jobSteps = [];
   Timer? _jobTimer;
+  String _prevStepLabel = '';
 
   @override
   bool get isJobPaused => _jobPaused;
@@ -25,6 +26,8 @@ class GrblMockService extends GrblService {
   void connect() {
     // Simulate GRBL handshake + version string
     Future.delayed(const Duration(milliseconds: 320), () {
+      logRx("Grbl 1.1h ['\$' for help]");
+      logRx("[MSG:'\$H'|'\$X' to unlock]");
       connected = true;
       notifyListeners();
     });
@@ -41,11 +44,18 @@ class GrblMockService extends GrblService {
   @override
   void jog(double dx, double dy, double dz) {
     if (!isIdle) return;
+    final cmd = '\$J=G91G21'
+        '${dx != 0 ? 'X${_f(dx)}' : ''}'
+        '${dy != 0 ? 'Y${_f(dy)}' : ''}'
+        '${dz != 0 ? 'Z${_f(dz)}' : ''}'
+        'F3000';
+    logTx(cmd);
     setMachineStatus(MachineStatus.jog);
     Future.delayed(const Duration(milliseconds: 140), () {
       x = _round(x + dx);
       y = _round(y + dy);
       z = _round(z + dz);
+      logRx('ok');
       setMachineStatus(MachineStatus.idle);
     });
   }
@@ -53,9 +63,12 @@ class GrblMockService extends GrblService {
   @override
   void homeAll() {
     if (!isIdle) return;
+    logTx('\$H');
     setMachineStatus(MachineStatus.homing);
     Future.delayed(const Duration(milliseconds: 1600), () {
       x = 0; y = 0; z = 0;
+      logRx('ok');
+      logRx('<Idle|MPos:0.000,0.000,0.000>');
       setMachineStatus(MachineStatus.idle);
     });
   }
@@ -63,9 +76,11 @@ class GrblMockService extends GrblService {
   @override
   void setOrigin() {
     if (!isIdle) return;
-    // Simulate G92/G10 round-trip
+    logTx('G10 L20 P0 X0 Y0 Z0');
+    // Simulate G10 round-trip
     Future.delayed(const Duration(milliseconds: 60), () {
       x = 0; y = 0; z = 0;
+      logRx('ok');
       notifyListeners();
     });
   }
@@ -77,9 +92,16 @@ class GrblMockService extends GrblService {
     if (!isIdle) return;
     _jobSteps = _collectSteps(document);
     if (_jobSteps.isEmpty) return;
+
+    logTx('G21'); logRx('ok');
+    logTx('G90'); logRx('ok');
+    logTx('M5 S0'); logRx('ok');
+    logTx('G0 X0.000 Y0.000'); logRx('ok');
+
     jobProgress = 0.0;
     jobCurrentStep = 0;
     _jobPaused = false;
+    _prevStepLabel = '';
     setMachineStatus(MachineStatus.run);
     _advance();
   }
@@ -89,6 +111,8 @@ class GrblMockService extends GrblService {
     if (!isJobRunning || _jobPaused) return;
     _jobPaused = true;
     _jobTimer?.cancel();
+    logTx('!');
+    logRx('ok');
     notifyListeners();
   }
 
@@ -96,6 +120,8 @@ class GrblMockService extends GrblService {
   void resumeJob() {
     if (!isJobRunning || !_jobPaused) return;
     _jobPaused = false;
+    logTx('~');
+    logRx('ok');
     _advance();
   }
 
@@ -107,23 +133,42 @@ class GrblMockService extends GrblService {
     jobCurrentStep = 0;
     jobCurrentLabel = '';
     _jobPaused = false;
+    _prevStepLabel = '';
+    logTx('\x18'); // Ctrl-X soft-reset
+    logRx('ok');
     setMachineStatus(MachineStatus.idle);
   }
 
   void _advance() {
     if (jobCurrentStep >= _jobSteps.length) {
+      logTx('M5 S0'); logRx('ok');
+      logTx('G0 X0.000 Y0.000'); logRx('ok');
+      logTx('M2'); logRx('ok');
       _jobSteps = [];
       jobProgress = 0.0;
       jobCurrentStep = 0;
       jobCurrentLabel = '';
       _jobPaused = false;
+      _prevStepLabel = '';
       status = MachineStatus.idle;
       jobJustCompleted = true;
       notifyListeners();
       return;
     }
+
     final step = _jobSteps[jobCurrentStep];
-    // Only update the displayed label on feed-move steps, not rapid moves.
+
+    if (step.label.isNotEmpty && step.label != _prevStepLabel) {
+      // New path — log header + rapid + laser-on
+      _prevStepLabel = step.label;
+      logTx('; --- ${step.label} ---');
+      logTx('G0 X${_f(step.x)} Y${_f(step.y)}'); logRx('ok');
+      logTx('M3 S500'); logRx('ok');
+    } else if (step.label.isNotEmpty && jobCurrentStep % 6 == 0) {
+      // Sample every 6th feed-move to keep log readable
+      logTx('G1 X${_f(step.x)} Y${_f(step.y)} F1000'); logRx('ok');
+    }
+
     if (step.label.isNotEmpty) jobCurrentLabel = step.label;
     jobProgress = jobCurrentStep / _jobSteps.length;
     x = step.x;
@@ -151,7 +196,6 @@ class GrblMockService extends GrblService {
           for (var pass = 0; pass < passes; pass++) {
             final pts = _samplePath(n.pathData!, m, doc.viewBox);
             if (pts.isEmpty) continue;
-            // Rapid move to start of path (no label — cursor jumps silently)
             steps.add((label: '', x: pts.first.dx, y: pts.first.dy));
             final label = passes > 1
                 ? '${eff.label}: ${n.label} (pass ${pass + 1}/$passes)'
@@ -202,6 +246,7 @@ class GrblMockService extends GrblService {
   @override
   void startFraming(Rect b) {
     if (isFraming || isJobRunning) return;
+    logTx('; frame ${_f(b.left)},${_f(b.top)} → ${_f(b.right)},${_f(b.bottom)}');
     isFraming = true;
     notifyListeners();
     _doFraming(b);
@@ -227,6 +272,7 @@ class GrblMockService extends GrblService {
       if (!isFraming) return;
       await Future.delayed(const Duration(milliseconds: 350));
       if (!isFraming) return;
+      logTx('G0 X${_f(c.dx)} Y${_f(c.dy)}'); logRx('ok');
       x = c.dx;
       y = c.dy;
       notifyListeners();
@@ -235,6 +281,7 @@ class GrblMockService extends GrblService {
     notifyListeners();
   }
 
+  static String _f(double v) => v.toStringAsFixed(3);
   double _round(double v) => (v * 1000).roundToDouble() / 1000;
 
   @override

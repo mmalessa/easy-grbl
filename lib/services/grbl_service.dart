@@ -26,7 +26,22 @@ extension MachineStatusDisplay on MachineStatus {
       };
 }
 
+typedef LogEntry = ({bool rx, String text});
+
 abstract class GrblService extends ChangeNotifier {
+  // ── Communication log ────────────────────────────────────────────
+  final List<LogEntry> commLog = [];
+
+  void logTx(String text) {
+    commLog.add((rx: false, text: text));
+    if (commLog.length > 500) commLog.removeAt(0);
+  }
+
+  void logRx(String text) {
+    commLog.add((rx: true, text: text));
+    if (commLog.length > 500) commLog.removeAt(0);
+  }
+
   // ── Shared state ─────────────────────────────────────────────────
   double x = 0;
   double y = 0;
