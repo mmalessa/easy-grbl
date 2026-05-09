@@ -4,8 +4,9 @@ import 'svg_document_painter.dart';
 
 class SvgPreviewWidget extends StatelessWidget {
   final SvgDocument? document;
+  final Offset? machinePos;
 
-  const SvgPreviewWidget({super.key, this.document});
+  const SvgPreviewWidget({super.key, this.document, this.machinePos});
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +26,10 @@ class SvgPreviewWidget extends StatelessWidget {
           width: constraints.maxWidth,
           height: constraints.maxHeight,
           child: CustomPaint(
-            painter: SvgDocumentPainter(document: document!),
+            painter: SvgDocumentPainter(
+              document: document!,
+              machinePos: machinePos,
+            ),
           ),
         ),
       ),

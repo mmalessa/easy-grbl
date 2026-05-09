@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/svg_node.dart';
 import '../models/svg_node_type.dart';
+import '../models/operation_type.dart';
 
 class LayersPanel extends StatelessWidget {
   final List<SvgNode> roots;
@@ -60,6 +61,7 @@ class _NodeTileState extends State<NodeTile> {
   Widget build(BuildContext context) {
     final node = widget.node;
     final indent = widget.depth * 14.0;
+    final opColor = node.settings.operationType.color;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,12 +69,21 @@ class _NodeTileState extends State<NodeTile> {
         InkWell(
           onTap: () => widget.onSelect(node),
           child: Container(
-            color: node.selected ? Colors.blue.withValues(alpha: 0.18) : null,
-            padding: EdgeInsets.only(left: 4 + indent, right: 4, top: 2, bottom: 2),
+            color: node.selected
+                ? Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.5)
+                : null,
             child: Row(
               children: [
+                // Colored operation type bar on the left edge
+                Container(
+                  width: 3,
+                  height: 26,
+                  color: opColor,
+                ),
+                SizedBox(width: 4 + indent),
+                // Expand/collapse arrow
                 SizedBox(
-                  width: 18,
+                  width: 16,
                   child: node.children.isNotEmpty
                       ? GestureDetector(
                           behavior: HitTestBehavior.opaque,
@@ -84,27 +95,35 @@ class _NodeTileState extends State<NodeTile> {
                         )
                       : const SizedBox(),
                 ),
-                Icon(_icon(node.type), size: 14, color: _iconColor(node.type)),
-                const SizedBox(width: 5),
+                // Type icon (colored by operation for layers/groups)
+                Icon(
+                  _icon(node.type),
+                  size: 13,
+                  color: node.isGroup ? opColor : Colors.grey[600],
+                ),
+                const SizedBox(width: 4),
+                // Label
                 Expanded(
                   child: Text(
                     node.label,
                     style: TextStyle(
                       fontSize: 12,
                       color: node.enabled ? null : Colors.grey[400],
+                      fontWeight: node.isGroup ? FontWeight.w600 : FontWeight.normal,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                // Eye toggle
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () => widget.onToggleEnabled(node),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 6),
                     child: Icon(
                       node.enabled ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                      size: 14,
-                      color: node.enabled ? Colors.grey[600] : Colors.grey[400],
+                      size: 13,
+                      color: node.enabled ? Colors.grey[500] : Colors.grey[400],
                     ),
                   ),
                 ),
@@ -132,11 +151,5 @@ class _NodeTileState extends State<NodeTile> {
         SvgNodeType.polygon => Icons.change_history_outlined,
         SvgNodeType.path => Icons.gesture,
         _ => Icons.article_outlined,
-      };
-
-  Color _iconColor(SvgNodeType t) => switch (t) {
-        SvgNodeType.layer => Colors.blue[600]!,
-        SvgNodeType.group => Colors.orange[600]!,
-        _ => Colors.grey[600]!,
       };
 }
