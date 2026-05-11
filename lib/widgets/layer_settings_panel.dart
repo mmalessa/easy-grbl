@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import '../models/svg_node.dart';
 import '../models/svg_node_type.dart';
 import '../models/layer_settings.dart';
+import '../models/machine_settings.dart';
 import '../models/operation_type.dart';
 
 class LayerSettingsPanel extends StatefulWidget {
   final SvgNode node;
+  final MachineSettings machineSettings;
   final void Function(LayerSettings) onChanged;
 
   const LayerSettingsPanel({
     super.key,
     required this.node,
+    required this.machineSettings,
     required this.onChanged,
   });
 
@@ -80,7 +83,17 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
           _OpTypePicker(
             value: _opType,
             onChanged: (v) {
-              setState(() => _opType = v);
+              setState(() {
+                _opType = v;
+                final ms = widget.machineSettings;
+                if (v == OperationType.engrave) {
+                  _power = ms.engravePower.toDouble();
+                  _speed = ms.engraveSpeed;
+                } else if (v == OperationType.cut) {
+                  _power = ms.cutPower.toDouble();
+                  _speed = ms.cutSpeed;
+                }
+              });
               _emit();
             },
           ),

@@ -11,6 +11,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback onToggleConnect;
   final VoidCallback onHomeAll;
   final VoidCallback onSetOrigin;
+  final VoidCallback onMachineSettings;
 
   const MainAppBar({
     super.key,
@@ -22,6 +23,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onToggleConnect,
     required this.onHomeAll,
     required this.onSetOrigin,
+    required this.onMachineSettings,
   });
 
   @override
@@ -96,6 +98,12 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                 onPressed: isConnected ? onSetOrigin : null,
                 leadingIcon: const Icon(Icons.gps_fixed, size: 16),
                 child: const Text('Set Home'),
+              ),
+              const Divider(height: 1),
+              MenuItemButton(
+                onPressed: onMachineSettings,
+                leadingIcon: const Icon(Icons.settings, size: 16),
+                child: const Text('Settings…'),
               ),
             ],
           ),

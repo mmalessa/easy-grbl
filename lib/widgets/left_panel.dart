@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/layer_settings.dart';
+import '../models/machine_settings.dart';
 import 'layers_panel.dart';
 import 'layer_settings_panel.dart';
 import 'panel_section_header.dart';
@@ -9,6 +10,7 @@ import 'panel_section_header.dart';
 class LeftPanel extends StatelessWidget {
   final SvgDocument? document;
   final SvgNode? selectedNode;
+  final MachineSettings machineSettings;
   final void Function(SvgNode) onToggleEnabled;
   final void Function(SvgNode) onSelect;
   final void Function(SvgNode, LayerSettings) onSettingsChanged;
@@ -17,6 +19,7 @@ class LeftPanel extends StatelessWidget {
     super.key,
     required this.document,
     required this.selectedNode,
+    required this.machineSettings,
     required this.onToggleEnabled,
     required this.onSelect,
     required this.onSettingsChanged,
@@ -72,6 +75,7 @@ class LeftPanel extends StatelessWidget {
                     LayerSettingsPanel(
                       key: ValueKey(selectedNode!.id),
                       node: selectedNode!,
+                      machineSettings: machineSettings,
                       onChanged: (s) => onSettingsChanged(selectedNode!, s),
                     ),
                   ],

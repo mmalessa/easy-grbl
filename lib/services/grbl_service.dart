@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import '../models/machine_settings.dart';
 
 enum MachineStatus { idle, jog, run, homing, alarm, hold }
 
@@ -43,6 +44,7 @@ abstract class GrblService extends ChangeNotifier {
   }
 
   // ── Shared state ─────────────────────────────────────────────────
+  MachineSettings machineSettings = const MachineSettings();
   double x = 0;
   double y = 0;
   double z = 0;

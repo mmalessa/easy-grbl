@@ -11,16 +11,20 @@ class ConnectResult {
   const ConnectResult.serial(this.port, this.baud) : mock = false;
 }
 
-Future<ConnectResult?> showConnectDialog(BuildContext context) {
+Future<ConnectResult?> showConnectDialog(
+  BuildContext context, {
+  int initialBaud = 115200,
+}) {
   return showDialog<ConnectResult>(
     context: context,
     barrierDismissible: true,
-    builder: (_) => const _ConnectDialog(),
+    builder: (_) => _ConnectDialog(initialBaud: initialBaud),
   );
 }
 
 class _ConnectDialog extends StatefulWidget {
-  const _ConnectDialog();
+  final int initialBaud;
+  const _ConnectDialog({this.initialBaud = 115200});
 
   @override
   State<_ConnectDialog> createState() => _ConnectDialogState();
@@ -29,13 +33,14 @@ class _ConnectDialog extends StatefulWidget {
 class _ConnectDialogState extends State<_ConnectDialog> {
   List<String> _ports = [];
   String? _selectedPort;
-  int _baud = 115200;
+  late int _baud;
   bool _scanning = false;
   bool _serialUnavailable = false;
 
   @override
   void initState() {
     super.initState();
+    _baud = widget.initialBaud;
     _scan();
   }
 

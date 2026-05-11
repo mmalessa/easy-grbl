@@ -3,12 +3,17 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import '../models/machine_settings.dart';
 import 'affine.dart';
 
 class GcodeGenerator {
   static const double _step = 0.1; // mm per sample along curves
 
-  static String generate(SvgDocument doc, String filename) {
+  static String generate(
+    SvgDocument doc,
+    String filename,
+    MachineSettings settings,
+  ) {
     final buf = StringBuffer();
     final vb = doc.viewBox;
 
@@ -25,7 +30,7 @@ class GcodeGenerator {
       ..writeln('G0 X0 Y0 ; move to origin')
       ..writeln();
 
-    _walkNodes(doc.roots, SvgAffine.identity, vb, true, null, buf);
+    _walkNodes(doc.roots, SvgAffine.identity, vb, true, null, settings, buf);
 
     buf
       ..writeln()
@@ -42,6 +47,7 @@ class GcodeGenerator {
     Rect vb,
     bool parentEnabled,
     OperationType? inheritedOp,
+    MachineSettings settings,
     StringBuffer buf,
   ) {
     for (final node in nodes) {
@@ -63,12 +69,13 @@ class GcodeGenerator {
         );
         for (var pass = 0; pass < s.passes; pass++) {
           if (s.passes > 1) buf.writeln('; pass ${pass + 1}/${s.passes}');
-          _pathToGcode(
-              node.pathData!, combined, vb, s.powerPercent, s.speedMmMin, buf);
+          _pathToGcode(node.pathData!, combined, vb, s.powerPercent,
+              s.speedMmMin, settings, buf);
         }
       }
 
-      _walkNodes(node.children, combined, vb, node.enabled, effectiveOp, buf);
+      _walkNodes(
+          node.children, combined, vb, node.enabled, effectiveOp, settings, buf);
     }
   }
 
@@ -78,6 +85,7 @@ class GcodeGenerator {
     Rect vb,
     int powerPct,
     int feedRate,
+    MachineSettings settings,
     StringBuffer buf,
   ) {
     final Path path;
@@ -87,7 +95,8 @@ class GcodeGenerator {
       return;
     }
     final metrics = path.computeMetrics();
-    final sPower = (powerPct * 10).clamp(0, 1000);
+    final sMax = settings.sMax;
+    final sPower = (powerPct / 100.0 * sMax).round().clamp(0, sMax);
     int? lastF;
 
     for (final metric in metrics) {
@@ -117,7 +126,7 @@ class GcodeGenerator {
 
       buf.writeln('M5 S0');
       buf.writeln('G0 X${_f(pts.first.dx)} Y${_f(pts.first.dy)}');
-      buf.writeln('M3 S$sPower');
+      buf.writeln('${settings.laserMode.gcode} S$sPower');
 
       for (var i = 1; i < pts.length; i++) {
         final fTag = (lastF == feedRate) ? '' : ' F$feedRate';

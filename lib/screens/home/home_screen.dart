@@ -11,7 +11,10 @@ import '../../services/grbl_mock_service.dart';
 import '../../services/grbl_serial_service.dart';
 import '../../services/gcode_generator.dart';
 import '../../services/toolpath.dart';
+import '../../models/machine_settings.dart';
+import '../../services/settings_service.dart';
 import '../../widgets/connect_dialog.dart';
+import '../../widgets/machine_settings_dialog.dart';
 import '../../widgets/main_app_bar.dart';
 import '../../widgets/gcode_dialog.dart';
 import '../../widgets/svg_preview_widget.dart';
@@ -26,12 +29,26 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final s = await SettingsService.load();
+    if (!mounted) return;
+    setState(() => _machineSettings = s);
+    _grbl.machineSettings = s;
+  }
+
   SvgDocument? _document;
   String _filename = '';
   SvgNode? _selectedNode;
   GrblService _grbl = GrblMockService();
   final List<RecentFile> _recentFiles = [];
   ToolpathData? _toolpath;
+  MachineSettings _machineSettings = const MachineSettings();
 
   @override
   void dispose() {
@@ -41,17 +58,31 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Connection ───────────────────────────────────────────────────
 
+  Future<void> _openMachineSettings() async {
+    final result =
+        await showMachineSettingsDialog(context, _machineSettings);
+    if (result != null) {
+      setState(() => _machineSettings = result);
+      _grbl.machineSettings = result;
+      SettingsService.save(result);
+    }
+  }
+
   Future<void> _openConnectDialog() async {
     if (_grbl.connected) {
       _grbl.disconnect();
       return;
     }
-    final result = await showConnectDialog(context);
+    final result = await showConnectDialog(
+      context,
+      initialBaud: _machineSettings.defaultBaudRate,
+    );
     if (result == null || !mounted) return;
 
     if (result.mock) {
       final old = _grbl;
       final mock = GrblMockService()..connect();
+      mock.machineSettings = _machineSettings;
       setState(() => _grbl = mock);
       old.dispose();
     } else {
@@ -60,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       if (ok) {
         final old = _grbl;
+        serial.machineSettings = _machineSettings;
         setState(() => _grbl = serial);
         old.dispose();
       } else {
@@ -119,7 +151,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _exportGcode() {
     if (_document == null) return;
-    final gcode = GcodeGenerator.generate(_document!, _filename);
+    final gcode = GcodeGenerator.generate(_document!, _filename, _machineSettings);
     showGcodeDialog(context, gcode, _filename);
   }
 
@@ -206,6 +238,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onToggleConnect: () => _openConnectDialog(),
             onHomeAll: _grbl.homeAll,
             onSetOrigin: _grbl.setOrigin,
+            onMachineSettings: _openMachineSettings,
           ),
           body: Column(
             children: [
@@ -217,6 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: LeftPanel(
                         document: _document,
                         selectedNode: _selectedNode,
+                        machineSettings: _machineSettings,
                         onToggleEnabled: _toggleEnabled,
                         onSelect: _selectNode,
                         onSettingsChanged: _onSettingsChanged,

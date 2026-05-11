@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' show Rect;
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 import '../models/svg_document.dart';
+import '../models/machine_settings.dart';
 import 'grbl_service.dart';
 import 'gcode_generator.dart';
 
@@ -195,7 +196,7 @@ class GrblSerialService extends GrblService {
   }
 
   void _streamJob(SvgDocument document) async {
-    final gcode = GcodeGenerator.generate(document, '');
+    final gcode = GcodeGenerator.generate(document, '', machineSettings);
     final lines = gcode
         .split('\n')
         .map((l) => l.contains(';')
