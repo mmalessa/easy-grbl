@@ -3,7 +3,9 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import '../models/layer_settings.dart';
 import 'affine.dart';
+import 'gcode_generator.dart';
 
 /// Pre-baked toolpath for canvas rendering. All coordinates are in SVG space.
 class ToolpathData {
@@ -33,10 +35,8 @@ ToolpathData? computeToolpath(SvgDocument doc) {
   void addContour(List<Offset> svgPts, Color color) {
     if (svgPts.isEmpty) return;
     hasAny = true;
-    // Rapid move to start of this contour
     rapidPath.moveTo(lastPos.dx, lastPos.dy);
     rapidPath.lineTo(svgPts.first.dx, svgPts.first.dy);
-    // Feed (laser on)
     final p = feedMap.putIfAbsent(color, Path.new);
     p.moveTo(svgPts.first.dx, svgPts.first.dy);
     for (final pt in svgPts.skip(1)) {
@@ -45,11 +45,10 @@ ToolpathData? computeToolpath(SvgDocument doc) {
     lastPos = svgPts.last;
   }
 
-  _walkNodes(doc.roots, SvgAffine.identity, true, null, addContour);
+  _walkNodes(doc.roots, SvgAffine.identity, true, null, null, addContour);
 
   if (!hasAny) return null;
 
-  // Final rapid back to origin
   rapidPath.moveTo(lastPos.dx, lastPos.dy);
   rapidPath.lineTo(origin.dx, origin.dy);
 
@@ -64,6 +63,7 @@ void _walkNodes(
   SvgAffine parentM,
   bool parentEnabled,
   OperationType? inheritedOp,
+  LayerSettings? inheritedSettings,
   void Function(List<Offset>, Color) addContour,
 ) {
   for (final node in nodes) {
@@ -71,12 +71,20 @@ void _walkNodes(
     final m = parentM.multiply(SvgAffine.fromSvgString(node.transform));
     final ownOp = node.settings.operationType;
     final eff = ownOp != OperationType.skip ? ownOp : inheritedOp;
+    final effSettings =
+        ownOp != OperationType.skip ? node.settings : (inheritedSettings ?? node.settings);
     if (node.pathData != null && eff != null && eff != OperationType.skip) {
-      for (var pass = 0; pass < node.settings.passes; pass++) {
-        _samplePath(node.pathData!, m, eff.color, addContour);
+      if (eff == OperationType.fill) {
+        _sampleFill(node.pathData!, m, effSettings, addContour);
+      } else {
+        for (var pass = 0; pass < effSettings.passes; pass++) {
+          _samplePath(node.pathData!, m, eff.color, addContour);
+        }
       }
     }
-    _walkNodes(node.children, m, node.enabled, eff, addContour);
+    _walkNodes(node.children, m, node.enabled, eff,
+        ownOp != OperationType.skip ? node.settings : inheritedSettings,
+        addContour);
   }
 }
 
@@ -108,5 +116,28 @@ void _samplePath(
       if (pts.isEmpty || (tp - pts.last).distanceSquared > 0.04) pts.add(tp);
     }
     if (pts.length >= 2) addContour(pts, color);
+  }
+}
+
+void _sampleFill(
+  String pathData,
+  SvgAffine xform,
+  LayerSettings settings,
+  void Function(List<Offset>, Color) addContour,
+) {
+  final Path rawPath;
+  try {
+    rawPath = parseSvgPathData(pathData);
+  } catch (_) {
+    return;
+  }
+  final path = rawPath.transform(xform.toFloat64());
+  final color = OperationType.fill.color;
+
+  final lines = GcodeGenerator.computeFillLines(
+      path, settings.fillDirection, settings.linesPerMm);
+
+  for (final line in lines) {
+    addContour([line.$1, line.$2], color);
   }
 }

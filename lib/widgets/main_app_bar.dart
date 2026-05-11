@@ -8,6 +8,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final void Function(String path, String name) onOpenRecent;
   final VoidCallback? onExportGcode;
   final bool isConnected;
+  final bool isSerialConnected;
   final VoidCallback onToggleConnect;
   final VoidCallback onHomeAll;
   final VoidCallback onSetOrigin;
@@ -20,6 +21,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onOpenRecent,
     this.onExportGcode,
     required this.isConnected,
+    required this.isSerialConnected,
     required this.onToggleConnect,
     required this.onHomeAll,
     required this.onSetOrigin,
@@ -83,10 +85,10 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
               MenuItemButton(
                 onPressed: onToggleConnect,
                 leadingIcon: Icon(
-                  isConnected ? Icons.usb_off : Icons.usb,
+                  isSerialConnected ? Icons.usb_off : Icons.usb,
                   size: 16,
                 ),
-                child: Text(isConnected ? 'Disconnect' : 'Connect…'),
+                child: Text(isSerialConnected ? 'Disconnect' : 'Connect…'),
               ),
               const Divider(height: 1),
               MenuItemButton(

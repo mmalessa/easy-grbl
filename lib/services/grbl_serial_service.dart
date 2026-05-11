@@ -9,6 +9,7 @@ import 'gcode_generator.dart';
 
 class GrblSerialService extends GrblService {
   SerialPort? _port;
+  SerialPortReader? _reader;
   StreamSubscription<Uint8List>? _sub;
   Timer? _pollTimer;
   String _rxBuf = '';
@@ -16,7 +17,11 @@ class GrblSerialService extends GrblService {
   // Job streaming
   bool _jobPaused = false;
   bool _jobCancelled = false;
+  bool _pendingUnlock = false;
   Completer<bool>? _ackCompleter;
+
+  // Cached work-coordinate offset (updated when GRBL sends WCO in status)
+  double _wcox = 0, _wcoy = 0, _wcoz = 0;
 
   @override
   bool get isJobPaused => _jobPaused;
@@ -49,12 +54,15 @@ class GrblSerialService extends GrblService {
       _port!.config = cfg;
       cfg.dispose();
 
-      final reader = SerialPortReader(_port!);
-      _sub = reader.stream.listen(_onData, onError: (_) => disconnect());
+      _reader = SerialPortReader(_port!);
+      _sub = _reader!.stream.listen(_onData, onError: (_) => disconnect());
 
-      // Start status polling at 5 Hz
+      // Start status polling at 5 Hz.
+      // '?' is a GRBL real-time command — send it as a bare byte, NOT with '\n'.
+      // Sending '?\n' would cause GRBL to reply with both a status report AND
+      // a spurious 'ok' for the empty command, which prematurely fires _ackCompleter.
       _pollTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
-        _sendRaw('?');
+        _sendByte(0x3F); // '?'
       });
 
       connected = true;
@@ -77,14 +85,18 @@ class GrblSerialService extends GrblService {
     _pollTimer = null;
     _sub?.cancel();
     _sub = null;
+    try { _reader?.close(); } catch (_) {}
+    _reader = null;
     try { _port?.close(); } catch (_) {}
-    _port?.dispose();
+    try { _port?.dispose(); } catch (_) {}
     _port = null;
     connected = false;
     _jobPaused = false;
     _jobCancelled = false;
+    _pendingUnlock = false;
     jobProgress = 0;
     jobCurrentLabel = '';
+    _wcox = 0; _wcoy = 0; _wcoz = 0;
     setMachineStatus(MachineStatus.idle);
   }
 
@@ -119,6 +131,13 @@ class GrblSerialService extends GrblService {
   void _processLine(String line) {
     if (line.startsWith('<')) {
       _parseStatus(line);
+    } else if (line.startsWith('Grbl ')) {
+      // GRBL startup message — fired after soft reset or power-on.
+      // If we triggered the reset via Stop, automatically unlock alarm.
+      if (_pendingUnlock) {
+        _pendingUnlock = false;
+        _sendRaw('\$X');
+      }
     } else if (line == 'ok') {
       _ackCompleter?.complete(true);
       _ackCompleter = null;
@@ -130,20 +149,42 @@ class GrblSerialService extends GrblService {
     }
   }
 
+  static final _stRe   = RegExp(r'<(\w+)[|>]');
+  static final _wposRe = RegExp(r'WPos:([-\d.]+),([-\d.]+),([-\d.]+)');
+  static final _mposRe = RegExp(r'MPos:([-\d.]+),([-\d.]+),([-\d.]+)');
+  static final _wcoRe  = RegExp(r'WCO:([-\d.]+),([-\d.]+),([-\d.]+)');
+
   void _parseStatus(String line) {
-    // <Idle|MPos:0.000,0.000,0.000|...>  or  <Idle|WPos:0.000,...>
-    final stRe = RegExp(r'<(\w+)[|>]');
-    final posRe = RegExp(r'(?:MPos|WPos):([-\d.]+),([-\d.]+),([-\d.]+)');
-    final stM = stRe.firstMatch(line);
-    final posM = posRe.firstMatch(line);
-    if (stM != null) {
-      status = _parseStatusStr(stM.group(1)!);
+    // GRBL 1.1 sends either:
+    //   <Idle|WPos:x,y,z|...>               ($10=1)
+    //   <Idle|MPos:x,y,z|...|WCO:ox,oy,oz> ($10=0, WCO only when changed)
+    // We always want work-space position (WPos) for the crosshair.
+
+    final stM = _stRe.firstMatch(line);
+    if (stM != null) status = _parseStatusStr(stM.group(1)!);
+
+    // Update cached WCO whenever GRBL includes it (sent only when it changes).
+    final wcoM = _wcoRe.firstMatch(line);
+    if (wcoM != null) {
+      _wcox = double.tryParse(wcoM.group(1)!) ?? _wcox;
+      _wcoy = double.tryParse(wcoM.group(2)!) ?? _wcoy;
+      _wcoz = double.tryParse(wcoM.group(3)!) ?? _wcoz;
     }
-    if (posM != null) {
-      x = double.tryParse(posM.group(1)!) ?? x;
-      y = double.tryParse(posM.group(2)!) ?? y;
-      z = double.tryParse(posM.group(3)!) ?? z;
+
+    final wposM = _wposRe.firstMatch(line);
+    if (wposM != null) {
+      x = double.tryParse(wposM.group(1)!) ?? x;
+      y = double.tryParse(wposM.group(2)!) ?? y;
+      z = double.tryParse(wposM.group(3)!) ?? z;
+    } else {
+      final mposM = _mposRe.firstMatch(line);
+      if (mposM != null) {
+        x = (double.tryParse(mposM.group(1)!) ?? 0) - _wcox;
+        y = (double.tryParse(mposM.group(2)!) ?? 0) - _wcoy;
+        z = (double.tryParse(mposM.group(3)!) ?? 0) - _wcoz;
+      }
     }
+
     notifyListeners();
   }
 
@@ -174,7 +215,7 @@ class GrblSerialService extends GrblService {
   @override
   void homeAll() {
     if (!connected) return;
-    _sendRaw('\$H');
+    _sendRaw('G0 X0 Y0');
   }
 
   @override
@@ -264,9 +305,14 @@ class GrblSerialService extends GrblService {
   void stopJob() {
     if (!isJobRunning && !_jobPaused) return;
     _jobCancelled = true;
+    _jobPaused = false;
+    _pendingUnlock = true;
     _ackCompleter?.complete(false);
     _ackCompleter = null;
-    _sendByte(0x18); // GRBL soft reset
+    jobProgress = 0.0;
+    jobCurrentLabel = '';
+    notifyListeners();
+    _sendByte(0x18); // GRBL soft reset — GRBL will reply with "Grbl x.x..." then we send $X
   }
 
   @override

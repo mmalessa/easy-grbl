@@ -4,8 +4,10 @@ import 'dart:ui';
 import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
+import '../models/layer_settings.dart';
 import '../models/operation_type.dart';
 import 'affine.dart';
+import 'gcode_generator.dart';
 import 'grbl_service.dart';
 
 // label is empty for rapid-move steps (cursor jumps to path start without
@@ -14,6 +16,7 @@ typedef _Step = ({String label, double x, double y});
 
 class GrblMockService extends GrblService {
   bool _jobPaused = false;
+  bool _disposed = false;
   List<_Step> _jobSteps = [];
   Timer? _jobTimer;
   String _prevStepLabel = '';
@@ -24,8 +27,8 @@ class GrblMockService extends GrblService {
   // ── Connection ───────────────────────────────────────────────────
 
   void connect() {
-    // Simulate GRBL handshake + version string
     Future.delayed(const Duration(milliseconds: 320), () {
+      if (_disposed) return;
       logRx("Grbl 1.1h ['\$' for help]");
       logRx("[MSG:'\$H'|'\$X' to unlock]");
       connected = true;
@@ -52,6 +55,8 @@ class GrblMockService extends GrblService {
     logTx(cmd);
     setMachineStatus(MachineStatus.jog);
     Future.delayed(const Duration(milliseconds: 140), () {
+      if (_disposed) return;
+      if (status != MachineStatus.jog) return;
       x = _round(x + dx);
       y = _round(y + dy);
       z = _round(z + dz);
@@ -62,13 +67,14 @@ class GrblMockService extends GrblService {
 
   @override
   void homeAll() {
-    if (!isIdle) return;
-    logTx('\$H');
-    setMachineStatus(MachineStatus.homing);
-    Future.delayed(const Duration(milliseconds: 1600), () {
+    if (!connected) return;
+    _jobTimer?.cancel();
+    logTx('G0 X0 Y0');
+    setMachineStatus(MachineStatus.run);
+    Future.delayed(const Duration(milliseconds: 400), () {
+      if (_disposed) return;
       x = 0; y = 0; z = 0;
       logRx('ok');
-      logRx('<Idle|MPos:0.000,0.000,0.000>');
       setMachineStatus(MachineStatus.idle);
     });
   }
@@ -76,13 +82,10 @@ class GrblMockService extends GrblService {
   @override
   void setOrigin() {
     if (!isIdle) return;
-    logTx('G10 L20 P0 X0 Y0 Z0');
-    // Simulate G10 round-trip
-    Future.delayed(const Duration(milliseconds: 60), () {
-      x = 0; y = 0; z = 0;
-      logRx('ok');
-      notifyListeners();
-    });
+    logTx('G10 L20 P1 X0 Y0 Z0');
+    logRx('ok');
+    x = 0; y = 0; z = 0;
+    notifyListeners();
   }
 
   // ── Job execution ────────────────────────────────────────────────
@@ -135,6 +138,8 @@ class GrblMockService extends GrblService {
     _jobPaused = false;
     _prevStepLabel = '';
     logTx('\x18'); // Ctrl-X soft-reset
+    logRx("Grbl 1.1h ['\$' for help]");
+    logTx('\$X');
     logRx('ok');
     setMachineStatus(MachineStatus.idle);
   }
@@ -150,14 +155,8 @@ class GrblMockService extends GrblService {
       jobCurrentLabel = '';
       _jobPaused = false;
       _prevStepLabel = '';
-      logTx('\$H');
-      setMachineStatus(MachineStatus.homing);
-      Future.delayed(const Duration(milliseconds: 1600), () {
-        x = 0; y = 0; z = 0;
-        logRx('ok');
-        logRx('<Idle|MPos:0.000,0.000,0.000>');
-        setMachineStatus(MachineStatus.idle);
-      });
+      x = 0; y = 0; z = 0;
+      setMachineStatus(MachineStatus.idle);
       return;
     }
 
@@ -190,31 +189,46 @@ class GrblMockService extends GrblService {
   List<_Step> _collectSteps(SvgDocument doc) {
     final steps = <_Step>[];
 
-    void walk(List<SvgNode> nodes, bool pe, OperationType? iop, SvgAffine pm) {
+    void walk(List<SvgNode> nodes, bool pe, OperationType? iop,
+        LayerSettings? iSettings, SvgAffine pm) {
       for (final n in nodes) {
         if (!n.enabled || !pe) continue;
         final m = pm.multiply(SvgAffine.fromSvgString(n.transform));
         final own = n.settings.operationType;
         final eff = own != OperationType.skip ? own : iop;
+        final effSettings =
+            own != OperationType.skip ? n.settings : (iSettings ?? n.settings);
         if (n.pathData != null && eff != null && eff != OperationType.skip) {
-          final passes = n.settings.passes;
+          final passes = eff == OperationType.fill ? 1 : effSettings.passes;
           for (var pass = 0; pass < passes; pass++) {
-            final pts = _samplePath(n.pathData!, m, doc.viewBox);
+            final pts = eff == OperationType.fill
+                ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings)
+                : _samplePath(n.pathData!, m, doc.viewBox);
             if (pts.isEmpty) continue;
-            steps.add((label: '', x: pts.first.dx, y: pts.first.dy));
             final label = passes > 1
                 ? '${eff.label}: ${n.label} (pass ${pass + 1}/$passes)'
                 : '${eff.label}: ${n.label}';
-            for (final pt in pts) {
-              steps.add((label: label, x: pt.dx, y: pt.dy));
+            if (eff == OperationType.fill) {
+              // Each pair of pts is one scanline: rapid to start, feed to end
+              for (var i = 0; i < pts.length - 1; i += 2) {
+                steps.add((label: '', x: pts[i].dx, y: pts[i].dy));
+                steps.add((label: label, x: pts[i].dx, y: pts[i].dy));
+                steps.add((label: label, x: pts[i + 1].dx, y: pts[i + 1].dy));
+              }
+            } else {
+              steps.add((label: '', x: pts.first.dx, y: pts.first.dy));
+              for (final pt in pts) {
+                steps.add((label: label, x: pt.dx, y: pt.dy));
+              }
             }
           }
         }
-        walk(n.children, n.enabled, eff, m);
+        walk(n.children, n.enabled, eff,
+            own != OperationType.skip ? n.settings : iSettings, m);
       }
     }
 
-    walk(doc.roots, true, null, SvgAffine.identity);
+    walk(doc.roots, true, null, null, SvgAffine.identity);
     return steps;
   }
 
@@ -246,11 +260,46 @@ class GrblMockService extends GrblService {
     }
   }
 
+  // Returns [start, end, start, end, ...] pairs in machine coords for fill lines.
+  // Subsamples to at most 60 lines so the animation doesn't run for too long.
+  List<Offset> _sampleFill(
+    String pathData,
+    SvgAffine xform,
+    Rect vb,
+    LayerSettings settings,
+  ) {
+    try {
+      final rawPath = parseSvgPathData(pathData);
+      final path = rawPath.transform(xform.toFloat64());
+      var lines = GcodeGenerator.computeFillLines(
+          path, settings.fillDirection, settings.linesPerMm);
+      if (lines.isEmpty) return [];
+
+      const maxLines = 60;
+      if (lines.length > maxLines) {
+        final stride = lines.length / maxLines;
+        lines = [
+          for (var i = 0.0; i < lines.length; i += stride) lines[i.toInt()]
+        ];
+      }
+
+      final pts = <Offset>[];
+      for (final line in lines) {
+        pts.add(Offset(line.$1.dx - vb.left, vb.bottom - line.$1.dy));
+        pts.add(Offset(line.$2.dx - vb.left, vb.bottom - line.$2.dy));
+      }
+      return pts;
+    } catch (_) {
+      return [];
+    }
+  }
+
   static String _f(double v) => v.toStringAsFixed(3);
   double _round(double v) => (v * 1000).roundToDouble() / 1000;
 
   @override
   void dispose() {
+    _disposed = true;
     _jobTimer?.cancel();
     super.dispose();
   }

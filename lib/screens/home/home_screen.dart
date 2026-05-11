@@ -32,6 +32,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    final mock = GrblMockService();
+    _grbl = mock;
+    mock.connect();
     _loadSettings();
   }
 
@@ -45,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
   SvgDocument? _document;
   String _filename = '';
   SvgNode? _selectedNode;
-  GrblService _grbl = GrblMockService();
+  late GrblService _grbl;
   final List<RecentFile> _recentFiles = [];
   ToolpathData? _toolpath;
   MachineSettings _machineSettings = const MachineSettings();
@@ -69,10 +72,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openConnectDialog() async {
-    if (_grbl.connected) {
+    // Serial connection: clicking the button toggles disconnect.
+    if (_grbl is GrblSerialService && _grbl.connected) {
       _grbl.disconnect();
       return;
     }
+
     final result = await showConnectDialog(
       context,
       initialBaud: _machineSettings.defaultBaudRate,
@@ -80,11 +85,12 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result == null || !mounted) return;
 
     if (result.mock) {
+      if (_grbl is GrblMockService) return; // already on mock
       final old = _grbl;
       final mock = GrblMockService()..connect();
       mock.machineSettings = _machineSettings;
       setState(() => _grbl = mock);
-      old.dispose();
+      WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
     } else {
       final serial = GrblSerialService();
       final ok = await serial.connectSerial(result.port!, result.baud);
@@ -93,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final old = _grbl;
         serial.machineSettings = _machineSettings;
         setState(() => _grbl = serial);
-        old.dispose();
+        WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
       } else {
         serial.dispose();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -235,6 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onOpenRecent: _openRecentFile,
             onExportGcode: _document != null ? _exportGcode : null,
             isConnected: _grbl.connected,
+            isSerialConnected: _grbl is GrblSerialService && _grbl.connected,
             onToggleConnect: () => _openConnectDialog(),
             onHomeAll: _grbl.homeAll,
             onSetOrigin: _grbl.setOrigin,

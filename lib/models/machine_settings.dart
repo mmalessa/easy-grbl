@@ -19,6 +19,8 @@ class MachineSettings {
   final int engraveSpeed;
   final int cutPower;
   final int cutSpeed;
+  final int fillPower;
+  final int fillSpeed;
   final int defaultBaudRate;
 
   const MachineSettings({
@@ -29,6 +31,8 @@ class MachineSettings {
     this.engraveSpeed = 3000,
     this.cutPower = 100,
     this.cutSpeed = 800,
+    this.fillPower = 80,
+    this.fillSpeed = 3000,
     this.defaultBaudRate = 115200,
   });
 
@@ -40,6 +44,8 @@ class MachineSettings {
     int? engraveSpeed,
     int? cutPower,
     int? cutSpeed,
+    int? fillPower,
+    int? fillSpeed,
     int? defaultBaudRate,
   }) =>
       MachineSettings(
@@ -50,6 +56,8 @@ class MachineSettings {
         engraveSpeed: engraveSpeed ?? this.engraveSpeed,
         cutPower: cutPower ?? this.cutPower,
         cutSpeed: cutSpeed ?? this.cutSpeed,
+        fillPower: fillPower ?? this.fillPower,
+        fillSpeed: fillSpeed ?? this.fillSpeed,
         defaultBaudRate: defaultBaudRate ?? this.defaultBaudRate,
       );
 }

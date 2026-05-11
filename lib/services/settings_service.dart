@@ -17,6 +17,8 @@ class SettingsService {
       engraveSpeed: p.getInt('${_prefix}engraveSpeed') ?? 3000,
       cutPower: p.getInt('${_prefix}cutPower') ?? 100,
       cutSpeed: p.getInt('${_prefix}cutSpeed') ?? 800,
+      fillPower: p.getInt('${_prefix}fillPower') ?? 80,
+      fillSpeed: p.getInt('${_prefix}fillSpeed') ?? 3000,
       defaultBaudRate: p.getInt('${_prefix}defaultBaudRate') ?? 115200,
     );
   }
@@ -31,6 +33,8 @@ class SettingsService {
       p.setInt('${_prefix}engraveSpeed', s.engraveSpeed),
       p.setInt('${_prefix}cutPower', s.cutPower),
       p.setInt('${_prefix}cutSpeed', s.cutSpeed),
+      p.setInt('${_prefix}fillPower', s.fillPower),
+      p.setInt('${_prefix}fillSpeed', s.fillSpeed),
       p.setInt('${_prefix}defaultBaudRate', s.defaultBaudRate),
     ]);
   }

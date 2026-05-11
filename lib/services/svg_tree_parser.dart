@@ -22,10 +22,40 @@ class SvgTreeParser {
     final svgEl = xmlDoc.findElements('svg').firstOrNull;
     if (svgEl == null) return SvgDocument.empty();
 
+    final vb = _viewBox(svgEl);
     return SvgDocument(
       roots: _parseChildren(svgEl),
-      viewBox: _viewBox(svgEl),
+      viewBox: vb,
+      mmPerSvgUnit: _mmPerSvgUnit(svgEl, vb),
     );
+  }
+
+  /// Returns mm represented by one SVG coordinate unit, derived from the
+  /// physical width/height attributes. Falls back to 1.0 if unavailable.
+  static double _mmPerSvgUnit(XmlElement svg, Rect vb) {
+    if (vb.width == 0) return 1.0;
+    final wMm = _mmFromAttr(svg.getAttribute('width'));
+    if (wMm > 0) return wMm / vb.width;
+    if (vb.height == 0) return 1.0;
+    final hMm = _mmFromAttr(svg.getAttribute('height'));
+    if (hMm > 0) return hMm / vb.height;
+    return 1.0;
+  }
+
+  /// Parses an SVG length attribute value (e.g. "210mm", "96px") to mm.
+  static double _mmFromAttr(String? val) {
+    if (val == null || val.isEmpty) return 0;
+    final m = RegExp(r'^([\d.]+)\s*(mm|cm|in|pt|px)?$').firstMatch(val.trim());
+    if (m == null) return 0;
+    final n = double.tryParse(m.group(1)!) ?? 0;
+    return switch (m.group(2) ?? '') {
+      'mm' => n,
+      'cm' => n * 10,
+      'in' => n * 25.4,
+      'pt' => n * (25.4 / 72),
+      'px' => n * (25.4 / 96),
+      _ => 0, // unitless — cannot determine physical size
+    };
   }
 
   static Rect _viewBox(XmlElement svg) {

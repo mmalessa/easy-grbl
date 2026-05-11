@@ -172,7 +172,18 @@ class SvgDocumentPainter extends CustomPainter {
     if (node.pathData != null) {
       try {
         final path = parseSvgPathData(node.pathData!);
-        paint.color = _pathColor(node, visible, effectiveOp);
+        final isFillOp = visible && !node.selected && effectiveOp == OperationType.fill;
+        if (isFillOp) {
+          canvas.drawPath(
+            path,
+            Paint()
+              ..style = PaintingStyle.fill
+              ..color = OperationType.fill.color.withValues(alpha: 0.18),
+          );
+          paint.color = OperationType.fill.color.withValues(alpha: 0.55);
+        } else {
+          paint.color = _pathColor(node, visible, effectiveOp);
+        }
         canvas.drawPath(path, paint);
       } catch (_) {}
     }

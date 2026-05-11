@@ -3,6 +3,7 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import 'affine.dart';
 
@@ -30,7 +31,7 @@ class GcodeGenerator {
       ..writeln('G0 X0 Y0 ; move to origin')
       ..writeln();
 
-    _walkNodes(doc.roots, SvgAffine.identity, vb, true, null, settings, buf);
+    _walkNodes(doc.roots, SvgAffine.identity, vb, true, null, null, settings, buf);
 
     buf
       ..writeln()
@@ -47,37 +48,56 @@ class GcodeGenerator {
     Rect vb,
     bool parentEnabled,
     OperationType? inheritedOp,
+    LayerSettings? inheritedSettings,
     MachineSettings settings,
     StringBuffer buf,
   ) {
     for (final node in nodes) {
       if (!node.enabled || !parentEnabled) continue;
 
-      final combined = parentM.multiply(SvgAffine.fromSvgString(node.transform));
+      final combined =
+          parentM.multiply(SvgAffine.fromSvgString(node.transform));
 
       final ownOp = node.settings.operationType;
       final effectiveOp = ownOp != OperationType.skip ? ownOp : inheritedOp;
+      final effectiveSettings =
+          ownOp != OperationType.skip ? node.settings : (inheritedSettings ?? node.settings);
 
       if (node.pathData != null &&
           effectiveOp != null &&
           effectiveOp != OperationType.skip) {
-        final s = node.settings;
-        buf.writeln(
-          '; --- ${node.label} [${effectiveOp.label}]'
-          '  power:${s.powerPercent}%  speed:${s.speedMmMin} mm/min'
-          '  passes:${s.passes} ---',
-        );
-        for (var pass = 0; pass < s.passes; pass++) {
-          if (s.passes > 1) buf.writeln('; pass ${pass + 1}/${s.passes}');
-          _pathToGcode(node.pathData!, combined, vb, s.powerPercent,
-              s.speedMmMin, settings, buf);
+        final s = effectiveSettings;
+
+        if (effectiveOp == OperationType.fill) {
+          buf.writeln(
+            '; --- ${node.label} [Fill]'
+            '  power:${s.powerPercent}%  speed:${s.speedMmMin} mm/min'
+            '  lines/mm:${s.linesPerMm.toStringAsFixed(1)}'
+            '  dir:${s.fillDirection.name} ---',
+          );
+          _fillToGcode(node.pathData!, combined, vb, s.powerPercent,
+              s.speedMmMin, s.fillDirection, s.linesPerMm, settings, buf);
+        } else {
+          buf.writeln(
+            '; --- ${node.label} [${effectiveOp.label}]'
+            '  power:${s.powerPercent}%  speed:${s.speedMmMin} mm/min'
+            '  passes:${s.passes} ---',
+          );
+          for (var pass = 0; pass < s.passes; pass++) {
+            if (s.passes > 1) buf.writeln('; pass ${pass + 1}/${s.passes}');
+            _pathToGcode(node.pathData!, combined, vb, s.powerPercent,
+                s.speedMmMin, settings, buf);
+          }
         }
       }
 
-      _walkNodes(
-          node.children, combined, vb, node.enabled, effectiveOp, settings, buf);
+      _walkNodes(node.children, combined, vb, node.enabled, effectiveOp,
+          ownOp != OperationType.skip ? node.settings : inheritedSettings,
+          settings, buf);
     }
   }
+
+  // ── Outline (engrave / cut) ────────────────────────────────────────────────
 
   static void _pathToGcode(
     String pathData,
@@ -102,18 +122,15 @@ class GcodeGenerator {
     for (final metric in metrics) {
       if (metric.length < 0.001) continue;
 
-      // Sample points along contour
       final raw = <Offset>[];
       for (var d = 0.0; d <= metric.length; d += _step) {
         final t = metric.getTangentForOffset(d);
         if (t != null) raw.add(t.position);
       }
-      // Always include endpoint
       final endT = metric.getTangentForOffset(metric.length);
       if (endT != null) raw.add(endT.position);
       if (raw.isEmpty) continue;
 
-      // Transform + flip Y, then deduplicate
       final pts = <Offset>[];
       for (final p in raw) {
         final tp = xform.apply(p);
@@ -137,6 +154,154 @@ class GcodeGenerator {
       buf.writeln('M5 S0');
     }
   }
+
+  // ── Fill (scanline hatch) ──────────────────────────────────────────────────
+
+  static void _fillToGcode(
+    String pathData,
+    SvgAffine xform,
+    Rect vb,
+    int powerPct,
+    int feedRate,
+    FillDirection direction,
+    double linesPerMm,
+    MachineSettings settings,
+    StringBuffer buf,
+  ) {
+    final Path rawPath;
+    try {
+      rawPath = parseSvgPathData(pathData);
+    } catch (_) {
+      return;
+    }
+
+    // Apply transform in SVG space, then compute fill lines
+    final path = rawPath.transform(xform.toFloat64());
+    final lines = computeFillLines(path, direction, linesPerMm);
+    if (lines.isEmpty) return;
+
+    final sMax = settings.sMax;
+    final sPower = (powerPct / 100.0 * sMax).round().clamp(0, sMax);
+    int? lastF;
+
+    for (final line in lines) {
+      // Flip Y for G-code coordinate system
+      final x1 = line.$1.dx - vb.left;
+      final y1 = vb.bottom - line.$1.dy;
+      final x2 = line.$2.dx - vb.left;
+      final y2 = vb.bottom - line.$2.dy;
+
+      buf.writeln('M5 S0');
+      buf.writeln('G0 X${_f(x1)} Y${_f(y1)}');
+      buf.writeln('${settings.laserMode.gcode} S$sPower');
+      final fTag = (lastF == feedRate) ? '' : ' F$feedRate';
+      buf.writeln('G1 X${_f(x2)} Y${_f(y2)}$fTag');
+      lastF = feedRate;
+      buf.writeln('M5 S0');
+    }
+  }
+
+  /// Computes fill line segments in SVG space using scanline intersection.
+  /// Returns pairs (start, end) in alternating directions (boustrophedon).
+  /// Handles compound paths (e.g. shapes with holes) correctly via even-odd rule.
+  static List<(Offset, Offset)> computeFillLines(
+    Path path,
+    FillDirection direction,
+    double linesPerMm,
+  ) {
+    final bounds = path.getBounds();
+    if (bounds.isEmpty) return const [];
+
+    final step = 1.0 / linesPerMm;
+    final result = <(Offset, Offset)>[];
+
+    // Build one closed polygon per contour — do NOT connect contours to each
+    // other.  A naïve single boundary list would create spurious segments
+    // between subpaths (e.g. the closing point of an outer circle joined to
+    // the first point of the inner hole), producing wrong crossings and
+    // filling areas that should remain empty.
+    final contours = <List<Offset>>[];
+    for (final metric in path.computeMetrics()) {
+      if (metric.length < 0.001) continue;
+      final pts = <Offset>[];
+      final start = metric.getTangentForOffset(0)?.position;
+      var d = 0.0;
+      while (d <= metric.length) {
+        final t = metric.getTangentForOffset(d);
+        if (t != null) pts.add(t.position);
+        d += _step;
+      }
+      if (start != null) pts.add(start); // close back to start
+      if (pts.length >= 2) contours.add(pts);
+    }
+    if (contours.isEmpty) return const [];
+
+    if (direction == FillDirection.horizontal) {
+      var leftToRight = true;
+      var y = bounds.top + step * 0.5;
+      while (y < bounds.bottom) {
+        final xs = _crossingsX(contours, y);
+        for (var i = 0; i + 1 < xs.length; i += 2) {
+          final a = xs[i], b = xs[i + 1];
+          result.add(leftToRight
+              ? (Offset(a, y), Offset(b, y))
+              : (Offset(b, y), Offset(a, y)));
+          leftToRight = !leftToRight;
+        }
+        y += step;
+      }
+    } else {
+      var topToBottom = true;
+      var x = bounds.left + step * 0.5;
+      while (x < bounds.right) {
+        final ys = _crossingsY(contours, x);
+        for (var i = 0; i + 1 < ys.length; i += 2) {
+          final a = ys[i], b = ys[i + 1];
+          result.add(topToBottom
+              ? (Offset(x, a), Offset(x, b))
+              : (Offset(x, b), Offset(x, a)));
+          topToBottom = !topToBottom;
+        }
+        x += step;
+      }
+    }
+
+    return result;
+  }
+
+  /// Finds all X intersections of a horizontal scanline at [y] with [contours].
+  static List<double> _crossingsX(List<List<Offset>> contours, double y) {
+    final xs = <double>[];
+    for (final boundary in contours) {
+      for (var i = 0; i < boundary.length - 1; i++) {
+        final p1 = boundary[i], p2 = boundary[i + 1];
+        if ((p1.dy <= y && p2.dy > y) || (p2.dy <= y && p1.dy > y)) {
+          final t = (y - p1.dy) / (p2.dy - p1.dy);
+          xs.add(p1.dx + t * (p2.dx - p1.dx));
+        }
+      }
+    }
+    xs.sort();
+    return xs;
+  }
+
+  /// Finds all Y intersections of a vertical scanline at [x] with [contours].
+  static List<double> _crossingsY(List<List<Offset>> contours, double x) {
+    final ys = <double>[];
+    for (final boundary in contours) {
+      for (var i = 0; i < boundary.length - 1; i++) {
+        final p1 = boundary[i], p2 = boundary[i + 1];
+        if ((p1.dx <= x && p2.dx > x) || (p2.dx <= x && p1.dx > x)) {
+          final t = (x - p1.dx) / (p2.dx - p1.dx);
+          ys.add(p1.dy + t * (p2.dy - p1.dy));
+        }
+      }
+    }
+    ys.sort();
+    return ys;
+  }
+
+  // ── Bounds (used by framing / job preview) ─────────────────────────────────
 
   /// Returns the SVG-space bounding rect of all enabled active-operation paths,
   /// or null when no active paths exist.

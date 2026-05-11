@@ -33,6 +33,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
   late TextEditingController _engraveSpeedCtrl;
   late double _cutPower;
   late TextEditingController _cutSpeedCtrl;
+  late double _fillPower;
+  late TextEditingController _fillSpeedCtrl;
   late int _baudRate;
 
   @override
@@ -46,6 +48,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     _engraveSpeedCtrl = TextEditingController(text: '${s.engraveSpeed}');
     _cutPower = s.cutPower.toDouble();
     _cutSpeedCtrl = TextEditingController(text: '${s.cutSpeed}');
+    _fillPower = s.fillPower.toDouble();
+    _fillSpeedCtrl = TextEditingController(text: '${s.fillSpeed}');
     _baudRate = s.defaultBaudRate;
   }
 
@@ -55,6 +59,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     _spotCtrl.dispose();
     _engraveSpeedCtrl.dispose();
     _cutSpeedCtrl.dispose();
+    _fillSpeedCtrl.dispose();
     super.dispose();
   }
 
@@ -66,7 +71,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
 
   bool get _isValid =>
       _parseSpeed(_engraveSpeedCtrl) != null &&
-      _parseSpeed(_cutSpeedCtrl) != null;
+      _parseSpeed(_cutSpeedCtrl) != null &&
+      _parseSpeed(_fillSpeedCtrl) != null;
 
   MachineSettings _buildResult() {
     final spot = double.tryParse(_spotCtrl.text.replaceAll(',', '.')) ??
@@ -84,6 +90,9 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
       cutPower: _cutPower.round(),
       cutSpeed: (_parseSpeed(_cutSpeedCtrl) ?? widget.current.cutSpeed)
           .clamp(_kSpeedMin, _kSpeedMax),
+      fillPower: _fillPower.round(),
+      fillSpeed: (_parseSpeed(_fillSpeedCtrl) ?? widget.current.fillSpeed)
+          .clamp(_kSpeedMin, _kSpeedMax),
       defaultBaudRate: _baudRate,
     );
   }
@@ -92,7 +101,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: Listenable.merge(
-          [_engraveSpeedCtrl, _cutSpeedCtrl]),
+          [_engraveSpeedCtrl, _cutSpeedCtrl, _fillSpeedCtrl]),
       builder: (context, _) => AlertDialog(
         backgroundColor: Colors.grey[900],
         title: Row(children: [
@@ -146,6 +155,22 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                   'Speed (mm/min)',
                   _cutSpeedCtrl,
                   OperationType.cut.color,
+                ),
+
+                const SizedBox(height: 20),
+                // ── Fill defaults ─────────────────────────────────────
+                _sectionHeader('DEFAULTS — FILL'),
+                _sliderRow(
+                  'Power',
+                  _fillPower,
+                  OperationType.fill.color,
+                  (v) => setState(() => _fillPower = v),
+                ),
+                const SizedBox(height: 14),
+                _speedRow(
+                  'Speed (mm/min)',
+                  _fillSpeedCtrl,
+                  OperationType.fill.color,
                 ),
 
                 const SizedBox(height: 20),
