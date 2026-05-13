@@ -11,14 +11,17 @@ class SvgDocumentPainter extends CustomPainter {
   final SvgDocument document;
   final Offset? machinePos;
   final bool showGrid;
-  /// Pre-computed toolpath to overlay on the canvas.
+  final bool showAxes;
   final ToolpathData? toolpath;
+  final double marginPx;
 
   const SvgDocumentPainter({
     required this.document,
     this.machinePos,
     this.showGrid = false,
+    this.showAxes = true,
     this.toolpath,
+    this.marginPx = 0,
   });
 
   @override
@@ -26,9 +29,11 @@ class SvgDocumentPainter extends CustomPainter {
     if (size.isEmpty || document.roots.isEmpty) return;
 
     final vb = document.viewBox;
-    final scale = math.min(size.width / vb.width, size.height / vb.height);
-    final offsetX = (size.width - vb.width * scale) / 2;
-    final offsetY = (size.height - vb.height * scale) / 2;
+    final dw = (size.width - 2 * marginPx).clamp(1, double.infinity);
+    final dh = (size.height - 2 * marginPx).clamp(1, double.infinity);
+    final scale = math.min(dw / vb.width, dh / vb.height);
+    final offsetX = marginPx + (dw - vb.width * scale) / 2;
+    final offsetY = marginPx + (dh - vb.height * scale) / 2;
 
     // Shadow behind work area (screen coords, before transform)
     canvas.drawRect(
@@ -40,8 +45,8 @@ class SvgDocumentPainter extends CustomPainter {
     canvas.translate(offsetX - vb.left * scale, offsetY - vb.top * scale);
     canvas.scale(scale);
 
-    // White work area
-    canvas.drawRect(document.viewBox, Paint()..color = Colors.white);
+    // Light grey work area
+    canvas.drawRect(document.viewBox, Paint()..color = Colors.grey[100]!);
 
     // Grid
     if (showGrid) _paintGrid(canvas, document.viewBox, scale);
@@ -53,6 +58,9 @@ class SvgDocumentPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.5 / scale,
     );
+
+    // X / Y axes on the work area edges
+    if (showAxes) _paintAxes(canvas, document.viewBox, scale);
 
     final paint = Paint()
       ..style = PaintingStyle.stroke
@@ -72,6 +80,73 @@ class SvgDocumentPainter extends CustomPainter {
     }
 
     canvas.restore();
+  }
+
+  void _paintAxes(Canvas canvas, Rect vb, double scale) {
+    const tickL = 0.5; // mm
+    final off = 20 / scale;
+    final gap = 3 / scale;
+    final axisPaint = Paint()
+      ..color = Colors.grey[700]!
+      ..strokeWidth = 0.5 / scale
+      ..style = PaintingStyle.stroke;
+    final tickPaint = Paint()
+      ..color = Colors.grey[600]!
+      ..strokeWidth = 0.4 / scale;
+    final labelStyle = TextStyle(
+      color: Colors.grey[800]!,
+      fontSize: 9 / scale,
+      height: 1,
+    );
+
+    // ── X axis (below work area) ──
+    final xY = vb.bottom + off;
+    canvas.drawLine(Offset(vb.left, xY), Offset(vb.right, xY), axisPaint);
+    _label(canvas, '0', Offset(vb.left, xY + tickL + gap), labelStyle);
+
+    // ── Y axis (left of work area) ──
+    final yX = vb.left - off;
+    canvas.drawLine(Offset(yX, vb.bottom), Offset(yX, vb.top), axisPaint);
+    _label(canvas, '0', Offset(yX - tickL - gap, vb.bottom), labelStyle);
+
+    // ── Ticks ──
+    final extent = math.max(vb.width, vb.height);
+    final step = extent > 50 ? 10.0 : extent > 20 ? 5.0 : extent > 5 ? 1.0 : 0.5;
+    final majorEvery = 5;
+
+    var sv = (vb.left / step).ceil() * step;
+    var idx = 0;
+    while (sv <= vb.right) {
+      final isMajor = (idx % majorEvery) == 0;
+      canvas.drawLine(
+        Offset(sv, xY),
+        Offset(sv, xY + tickL),
+        isMajor ? tickPaint : axisPaint,
+      );
+      if (isMajor && sv > vb.left) {
+        _label(canvas, (sv - vb.left).round().toString(),
+            Offset(sv, xY + tickL + gap), labelStyle);
+      }
+      sv += step;
+      idx++;
+    }
+
+    sv = (vb.bottom / step).floor() * step;
+    idx = 0;
+    while (sv >= vb.top) {
+      final isMajor = (idx % majorEvery) == 0;
+      canvas.drawLine(
+        Offset(yX - tickL, sv),
+        Offset(yX, sv),
+        isMajor ? tickPaint : axisPaint,
+      );
+      if (isMajor && sv < vb.bottom) {
+        _label(canvas, (vb.bottom - sv).round().toString(),
+            Offset(yX - tickL - gap, sv), labelStyle);
+      }
+      sv -= step;
+      idx++;
+    }
   }
 
   void _paintGrid(Canvas canvas, Rect vb, double scale) {
@@ -214,6 +289,14 @@ class SvgDocumentPainter extends CustomPainter {
     }
     if (node.selected) return Colors.blue.shade400;
     return Colors.black87;
+  }
+
+  void _label(Canvas canvas, String text, Offset pos, TextStyle style) {
+    final tp = TextPainter(
+      text: TextSpan(text: text, style: style),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(pos.dx - tp.width / 2, pos.dy - tp.height));
   }
 
   @override

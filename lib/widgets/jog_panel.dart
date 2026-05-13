@@ -117,14 +117,13 @@ class _JogPad extends StatelessWidget {
               enabled: enabled,
               onTap: () => service.jog(-step, 0, 0),
             ),
-            const SizedBox(width: 44),
-            // _JogBtn(
-            //   icon: Icons.home,
-            //   enabled: enabled,
-            //   onTap: service.homeAll,
-            //   tooltip: 'Go Home',
-            // ),
-            // const SizedBox(width: 4),
+            const SizedBox(width: 4),
+            _JogBtn(
+              icon: Icons.home,
+              enabled: enabled,
+              onTap: service.homeAll,
+            ),
+            const SizedBox(width: 4),
             _JogBtn(
               icon: Icons.keyboard_arrow_right,
               enabled: enabled,
@@ -157,19 +156,17 @@ class _JogBtn extends StatelessWidget {
   final String? label;
   final bool enabled;
   final VoidCallback onTap;
-  final String? tooltip;
 
   const _JogBtn({
     this.icon,
     this.label,
     required this.enabled,
     required this.onTap,
-    this.tooltip,
   }) : assert(icon != null || label != null);
 
   @override
   Widget build(BuildContext context) {
-    final btn = Material(
+    return Material(
       color: enabled ? Colors.grey[200] : Colors.grey[100],
       borderRadius: BorderRadius.circular(5),
       child: InkWell(
@@ -195,7 +192,6 @@ class _JogBtn extends StatelessWidget {
         ),
       ),
     );
-    return tooltip != null ? Tooltip(message: tooltip!, child: btn) : btn;
   }
 }
 
