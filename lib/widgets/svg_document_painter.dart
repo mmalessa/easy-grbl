@@ -165,14 +165,16 @@ class SvgDocumentPainter extends CustomPainter {
     final ownOp = node.settings.operationType;
     final effectiveOp = ownOp != OperationType.skip ? ownOp : inheritedOp;
 
-    final hasTransform = node.transform != null && node.transform!.isNotEmpty;
-    if (hasTransform) canvas.save();
-    applySvgTransform(canvas, node.transform);
+    if (node.transform != null && node.transform!.isNotEmpty) {
+      canvas.save();
+      applySvgTransform(canvas, node.transform);
+    }
 
     if (node.pathData != null) {
       try {
         final path = parseSvgPathData(node.pathData!);
-        final isFillOp = visible && !node.selected && effectiveOp == OperationType.fill;
+        final sw = paint.strokeWidth;
+        final isFillOp = visible && effectiveOp == OperationType.fill;
         if (isFillOp) {
           canvas.drawPath(
             path,
@@ -185,6 +187,16 @@ class SvgDocumentPainter extends CustomPainter {
           paint.color = _pathColor(node, visible, effectiveOp);
         }
         canvas.drawPath(path, paint);
+
+        if (node.selected && visible && effectiveOp != null) {
+          canvas.drawPath(
+            path,
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..color = Colors.blue.shade400
+              ..strokeWidth = sw * 3,
+          );
+        }
       } catch (_) {}
     }
 
@@ -192,15 +204,15 @@ class SvgDocumentPainter extends CustomPainter {
       _paintNode(canvas, child, paint, visible, effectiveOp);
     }
 
-    if (hasTransform) canvas.restore();
+    if (node.transform != null && node.transform!.isNotEmpty) canvas.restore();
   }
 
   Color _pathColor(SvgNode node, bool visible, OperationType? effectiveOp) {
     if (!visible) return Colors.black.withValues(alpha: 0.12);
-    if (node.selected) return Colors.blue.shade400;
     if (effectiveOp != null && effectiveOp != OperationType.skip) {
       return effectiveOp.color.withValues(alpha: 0.85);
     }
+    if (node.selected) return Colors.blue.shade400;
     return Colors.black87;
   }
 
