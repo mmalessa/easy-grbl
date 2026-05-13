@@ -7,6 +7,8 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final List<RecentFile> recentFiles;
   final void Function(String path, String name) onOpenRecent;
   final VoidCallback? onExportGcode;
+  final VoidCallback onFocusTest;
+  final VoidCallback onKerfTest;
   final bool isConnected;
   final bool isSerialConnected;
   final VoidCallback onToggleConnect;
@@ -20,6 +22,8 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.recentFiles,
     required this.onOpenRecent,
     this.onExportGcode,
+    required this.onFocusTest,
+    required this.onKerfTest,
     required this.isConnected,
     required this.isSerialConnected,
     required this.onToggleConnect,
@@ -73,6 +77,23 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                   child: const Text('Export G-code…'),
                 ),
               ],
+              const Divider(height: 1),
+              SubmenuButton(
+                leadingIcon: const Icon(Icons.auto_fix_high_outlined, size: 16),
+                menuChildren: [
+                  MenuItemButton(
+                    onPressed: onFocusTest,
+                    leadingIcon: const Icon(Icons.my_location, size: 16),
+                    child: const Text('Focus Test'),
+                  ),
+                  MenuItemButton(
+                    onPressed: onKerfTest,
+                    leadingIcon: const Icon(Icons.straighten, size: 16),
+                    child: const Text('Kerf Test'),
+                  ),
+                ],
+                child: const Text('Templates'),
+              ),
             ],
             child: const Text('File'),
           ),

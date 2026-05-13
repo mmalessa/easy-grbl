@@ -10,12 +10,14 @@ import 'panel_section_header.dart';
 class RightPanel extends StatelessWidget {
   final SvgDocument? document;
   final GrblService service;
+  final VoidCallback? onStartJob;
   final VoidCallback? onExportGcode;
 
   const RightPanel({
     super.key,
     required this.document,
     required this.service,
+    this.onStartJob,
     this.onExportGcode,
   });
 
@@ -34,6 +36,7 @@ class RightPanel extends StatelessWidget {
           RunPanel(
             document: document,
             service: service,
+            onStartJob: onStartJob,
             onExportGcode: onExportGcode,
           ),
 

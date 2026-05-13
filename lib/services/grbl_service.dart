@@ -107,6 +107,7 @@ abstract class GrblService extends ChangeNotifier {
   void homeAll();
   void setOrigin();
   void startJob(SvgDocument document);
+  void startLines(List<String> lines);
   void pauseJob();
   void resumeJob();
   void stopJob();

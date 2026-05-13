@@ -4,14 +4,18 @@ import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
 import '../../models/svg_document.dart';
 import '../../models/svg_node.dart';
+import '../../models/svg_node_type.dart';
 import '../../models/layer_settings.dart';
+import '../../models/operation_type.dart';
 import '../../services/svg_tree_parser.dart';
 import '../../services/grbl_service.dart';
 import '../../services/grbl_mock_service.dart';
 import '../../services/grbl_serial_service.dart';
 import '../../services/gcode_generator.dart';
+import '../../services/gcode_templates.dart';
 import '../../services/toolpath.dart';
 import '../../models/machine_settings.dart';
+import '../../models/focus_test_config.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/connect_dialog.dart';
 import '../../widgets/machine_settings_dialog.dart';
@@ -53,6 +57,11 @@ class _HomeScreenState extends State<HomeScreen> {
   ToolpathData? _toolpath;
   MachineSettings _machineSettings = const MachineSettings();
   String? _lastDirectory;
+
+  // Focus Test
+  bool _showFocusTest = false;
+  FocusTestConfig _focusTestConfig = const FocusTestConfig();
+  SvgDocument? _focusTestDocument;
 
   @override
   void dispose() {
@@ -166,6 +175,75 @@ class _HomeScreenState extends State<HomeScreen> {
     showGcodeDialog(context, gcode, _filename);
   }
 
+  // ── Templates ────────────────────────────────────────────────────
+
+  SvgDocument _buildFocusTestDocument(FocusTestConfig cfg) {
+    final nodes = <SvgNode>[];
+    final half = ((cfg.lineCount - 1) / 2).floor();
+    for (var i = 0; i < cfg.lineCount; i++) {
+      final svgY = (cfg.lineCount - 1) - i;
+      final z = (i - half) * cfg.zStep;
+      nodes.add(SvgNode(
+        id: 'line_$i',
+        label: 'Z=${z.toStringAsFixed(1)}',
+        type: SvgNodeType.path,
+        pathData: 'M 0,$svgY L ${cfg.widthMm},$svgY',
+        settings: LayerSettings(
+          operationType: z == 0 ? OperationType.cut : OperationType.engrave,
+        ),
+      ));
+    }
+    final h = cfg.lineCount - 1.0;
+    return SvgDocument(
+      roots: nodes,
+      viewBox: Rect.fromLTWH(0, 0, cfg.widthMm, h),
+    );
+  }
+
+  void _onFocusTest() {
+    final cfg = FocusTestConfig(
+      powerPercent: _machineSettings.engravePower,
+      speedMmMin: _machineSettings.engraveSpeed,
+    );
+    setState(() {
+      _showFocusTest = true;
+      _focusTestConfig = cfg;
+      _focusTestDocument = _buildFocusTestDocument(cfg);
+    });
+  }
+
+  void _onFocusTestChanged(FocusTestConfig cfg) {
+    setState(() {
+      _focusTestConfig = cfg;
+      _focusTestDocument = _buildFocusTestDocument(cfg);
+    });
+  }
+
+  void _onCloseFocusTest() {
+    setState(() => _showFocusTest = false);
+  }
+
+  void _startFocusTestJob() {
+    final gcode = GcodeTemplates.focusTest(
+      _focusTestConfig,
+      _machineSettings,
+    );
+    final lines = gcode
+        .split('\n')
+        .map((l) => l.contains(';')
+            ? l.substring(0, l.indexOf(';')).trim()
+            : l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return;
+    _grbl.startLines(lines);
+  }
+
+  void _onKerfTest() {
+    final gcode = GcodeTemplates.kerfTest(_machineSettings);
+    showGcodeDialog(context, gcode, 'kerf-test.nc');
+  }
+
   // ── Node selection ───────────────────────────────────────────────
 
   void _toggleEnabled(SvgNode node) {
@@ -245,6 +323,8 @@ class _HomeScreenState extends State<HomeScreen> {
             recentFiles: _recentFiles,
             onOpenRecent: _openRecentFile,
             onExportGcode: _document != null ? _exportGcode : null,
+            onFocusTest: _onFocusTest,
+            onKerfTest: _onKerfTest,
             isConnected: _grbl.connected,
             isSerialConnected: _grbl is GrblSerialService && _grbl.connected,
             onToggleConnect: () => _openConnectDialog(),
@@ -266,12 +346,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         onToggleEnabled: _toggleEnabled,
                         onSelect: _selectNode,
                         onSettingsChanged: _onSettingsChanged,
+                        showFocusTest: _showFocusTest,
+                        focusTestConfig: _focusTestConfig,
+                        onFocusTestChanged: _onFocusTestChanged,
+                        onFocusTestClose: _onCloseFocusTest,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),
                     Expanded(
                       child: SvgPreviewWidget(
-                        document: _document,
+                        document:
+                            _showFocusTest ? _focusTestDocument : _document,
                         machinePos: _grbl.connected
                             ? Offset(_grbl.x, _grbl.y)
                             : null,
@@ -288,8 +373,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     SizedBox(
                       width: 290,
                       child: RightPanel(
-                        document: _document,
+                        document: _showFocusTest ? _focusTestDocument : _document,
                         service: _grbl,
+                        onStartJob:
+                            _showFocusTest ? _startFocusTestJob : null,
                         onExportGcode:
                             _document != null ? _exportGcode : null,
                       ),

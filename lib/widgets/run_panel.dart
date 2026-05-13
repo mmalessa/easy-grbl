@@ -5,12 +5,14 @@ import '../services/grbl_service.dart';
 class RunPanel extends StatelessWidget {
   final SvgDocument? document;
   final GrblService service;
+  final VoidCallback? onStartJob;
   final VoidCallback? onExportGcode;
 
   const RunPanel({
     super.key,
     required this.document,
     required this.service,
+    this.onStartJob,
     this.onExportGcode,
   });
 
@@ -95,7 +97,9 @@ class RunPanel extends StatelessWidget {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: canRun ? () => service.startJob(document!) : null,
+                  onPressed: canRun
+                      ? (onStartJob ?? () => service.startJob(document!))
+                      : null,
                   icon: const Icon(Icons.play_arrow, size: 16),
                   label: const Text('Start Job'),
                   style: FilledButton.styleFrom(

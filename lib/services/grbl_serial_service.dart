@@ -217,7 +217,7 @@ class GrblSerialService extends GrblService {
   @override
   void homeAll() {
     if (!connected) return;
-    _sendRaw('G0 X0 Y0');
+    _sendRaw('G0 X0 Y0 Z0');
   }
 
   @override
@@ -235,10 +235,6 @@ class GrblSerialService extends GrblService {
     if (!isIdle) return;
     _jobCancelled = false;
     _jobPaused = false;
-    _streamJob(document);
-  }
-
-  void _streamJob(SvgDocument document) async {
     final gcode = GcodeGenerator.generate(document, '', machineSettings);
     final lines = gcode
         .split('\n')
@@ -247,7 +243,18 @@ class GrblSerialService extends GrblService {
             : l.trim())
         .where((l) => l.isNotEmpty)
         .toList();
+    if (lines.isNotEmpty) _streamLines(lines);
+  }
 
+  @override
+  void startLines(List<String> lines) {
+    if (!isIdle) return;
+    _jobCancelled = false;
+    _jobPaused = false;
+    _streamLines(lines);
+  }
+
+  void _streamLines(List<String> lines) async {
     if (lines.isEmpty) return;
 
     jobProgress = 0;

@@ -28,14 +28,14 @@ class GcodeGenerator {
       ..writeln('G21 ; metric')
       ..writeln('G90 ; absolute positioning')
       ..writeln('M5 S0 ; laser off')
-      ..writeln('G0 X0 Y0 ; move to origin')
+      ..writeln('G0 X0 Y0 Z0 ; HOME')
       ..writeln();
 
     _walkNodes(doc.roots, SvgAffine.identity, vb, true, null, null, settings, buf);
 
     buf
       ..writeln()
-      ..writeln('G0 X0 Y0 ; return to origin')
+      ..writeln('G0 X0 Y0 Z0 ; HOME')
       ..writeln('M5 S0 ; laser off')
       ..writeln('M2 ; end of program');
 

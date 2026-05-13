@@ -69,7 +69,7 @@ class GrblMockService extends GrblService {
   void homeAll() {
     if (!connected) return;
     _jobTimer?.cancel();
-    logTx('G0 X0 Y0');
+    logTx('G0 X0 Y0 Z0');
     setMachineStatus(MachineStatus.run);
     Future.delayed(const Duration(milliseconds: 400), () {
       if (_disposed) return;
@@ -107,6 +107,26 @@ class GrblMockService extends GrblService {
     _prevStepLabel = '';
     setMachineStatus(MachineStatus.run);
     _advance();
+  }
+
+  @override
+  void startLines(List<String> lines) {
+    if (!isIdle || lines.isEmpty) return;
+    logTx('; --- focus test ---');
+    for (final line in lines) {
+      logTx(line);
+    }
+    logRx('ok');
+    jobProgress = 0.0;
+    jobCurrentStep = 0;
+    jobCurrentLabel = '';
+    setMachineStatus(MachineStatus.run);
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (_disposed) return;
+      jobProgress = 0.0;
+      jobCurrentLabel = '';
+      setMachineStatus(MachineStatus.idle);
+    });
   }
 
   @override
