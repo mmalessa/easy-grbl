@@ -102,6 +102,7 @@ class GrblSerialService extends GrblService {
 
   void _sendRaw(String cmd) {
     if (_port == null || !_port!.isOpen) return;
+    logTx(cmd);
     try {
       _port!.write(Uint8List.fromList('$cmd\n'.codeUnits));
     } catch (_) {
@@ -129,7 +130,10 @@ class GrblSerialService extends GrblService {
   void _processLine(String line) {
     if (line.startsWith('<')) {
       _parseStatus(line);
-    } else if (line.startsWith('Grbl ')) {
+      return;
+    }
+    logRx(line);
+    if (line.startsWith('Grbl ')) {
       // GRBL startup message — fired after soft reset or power-on.
       // If we triggered the reset via Stop, automatically unlock alarm.
       if (_pendingUnlock) {

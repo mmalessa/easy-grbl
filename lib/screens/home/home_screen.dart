@@ -52,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<RecentFile> _recentFiles = [];
   ToolpathData? _toolpath;
   MachineSettings _machineSettings = const MachineSettings();
+  String? _lastDirectory;
 
   @override
   void dispose() {
@@ -113,8 +114,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openFile() async {
     const typeGroup = XTypeGroup(label: 'SVG', extensions: ['svg']);
-    final file = await openFile(acceptedTypeGroups: [typeGroup]);
+    final file = await openFile(
+      acceptedTypeGroups: [typeGroup],
+      initialDirectory: _lastDirectory,
+    );
     if (file == null) return;
+    _lastDirectory = File(file.path).parent.path;
     final content = await file.readAsString();
     _onFileLoaded(content, file.name);
     _addRecent(file.path, file.name);

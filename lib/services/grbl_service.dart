@@ -35,11 +35,13 @@ abstract class GrblService extends ChangeNotifier {
   void logTx(String text) {
     commLog.add((rx: false, text: text));
     if (commLog.length > 500) commLog.removeAt(0);
+    notifyListeners();
   }
 
   void logRx(String text) {
     commLog.add((rx: true, text: text));
     if (commLog.length > 500) commLog.removeAt(0);
+    notifyListeners();
   }
 
   // ── Shared state ─────────────────────────────────────────────────
