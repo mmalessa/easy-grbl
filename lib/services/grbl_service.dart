@@ -50,8 +50,8 @@ abstract class GrblService extends ChangeNotifier {
   double y = 0;
   double z = 0;
   MachineStatus status = MachineStatus.idle;
-  double stepMm = 1.0;
-  double stepMmZ = 1.0;
+  double stepMm = 10.0;
+  double stepMmZ = 0.1;
   bool connected = false;
 
   // ── Job state ────────────────────────────────────────────────────

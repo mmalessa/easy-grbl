@@ -463,8 +463,6 @@ class _HomeScreenState extends State<HomeScreen> {
             isConnected: _grbl.connected,
             isSerialConnected: _grbl is GrblSerialService && _grbl.connected,
             onToggleConnect: () => _openConnectDialog(),
-            onHomeAll: _grbl.homeAll,
-            onSetOrigin: _grbl.setOrigin,
             onMachineSettings: _openMachineSettings,
           ),
           body: Column(

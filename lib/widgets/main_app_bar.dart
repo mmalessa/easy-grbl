@@ -13,8 +13,6 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool isConnected;
   final bool isSerialConnected;
   final VoidCallback onToggleConnect;
-  final VoidCallback onHomeAll;
-  final VoidCallback onSetOrigin;
   final VoidCallback onMachineSettings;
 
   const MainAppBar({
@@ -29,14 +27,13 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.isConnected,
     required this.isSerialConnected,
     required this.onToggleConnect,
-    required this.onHomeAll,
-    required this.onSetOrigin,
     required this.onMachineSettings,
   });
 
   @override
   Widget build(BuildContext context) {
     return AppBar(
+      toolbarHeight: 38,
       backgroundColor: Colors.grey[900],
       foregroundColor: Colors.white,
       titleSpacing: 0,
@@ -119,17 +116,6 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               const Divider(height: 1),
               MenuItemButton(
-                onPressed: isConnected ? onHomeAll : null,
-                leadingIcon: const Icon(Icons.home, size: 16),
-                child: const Text('Go Home'),
-              ),
-              MenuItemButton(
-                onPressed: isConnected ? onSetOrigin : null,
-                leadingIcon: const Icon(Icons.gps_fixed, size: 16),
-                child: const Text('Set Home'),
-              ),
-              const Divider(height: 1),
-              MenuItemButton(
                 onPressed: onMachineSettings,
                 leadingIcon: const Icon(Icons.settings, size: 16),
                 child: const Text('Settings…'),
@@ -148,5 +134,5 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
       );
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(38);
 }
