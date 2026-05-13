@@ -130,7 +130,6 @@ class RunPanel extends StatelessWidget {
 
   Widget _running(BuildContext context) {
     final progress = service.jobProgress;
-    final label = service.jobCurrentLabel;
     final pct = (progress * 100).round();
 
     return Padding(
@@ -165,12 +164,6 @@ class RunPanel extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 8),
           FilledButton.icon(

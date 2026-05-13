@@ -39,7 +39,7 @@ class _CodePanelState extends State<CodePanel> {
               ? Center(
                   child: Text(
                     'No activity',
-                    style: TextStyle(color: Colors.grey[700], fontSize: 11),
+                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
                   ),
                 )
               : ListView.builder(
@@ -58,7 +58,7 @@ class _CodePanelState extends State<CodePanel> {
                     return Text(
                       e.rx ? '< ${e.text}' : '> ${e.text}',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: 13,
                         fontFamily: 'monospace',
                         color: color,
                         height: 1.4,
