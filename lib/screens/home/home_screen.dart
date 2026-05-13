@@ -17,6 +17,7 @@ import '../../services/toolpath.dart';
 import '../../models/machine_settings.dart';
 import '../../models/focus_test_config.dart';
 import '../../models/kerf_test_config.dart';
+import '../../models/spot_test_config.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/connect_dialog.dart';
 import '../../widgets/machine_settings_dialog.dart';
@@ -68,6 +69,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showKerfTest = false;
   KerfTestConfig _kerfTestConfig = const KerfTestConfig();
   SvgDocument? _kerfTestDocument;
+
+  // Spot Size Test
+  bool _showSpotTest = false;
+  SpotTestConfig _spotTestConfig = const SpotTestConfig();
+  SvgDocument? _spotTestDocument;
 
   @override
   void dispose() {
@@ -309,6 +315,69 @@ class _HomeScreenState extends State<HomeScreen> {
     _grbl.startLines(lines);
   }
 
+  SvgDocument _buildSpotTestDocument(SpotTestConfig cfg) {
+    const labels = ['−0.1 mm', 'exact', '+0.1 mm'];
+    const bandH = 3.0;
+    const w = 9.0;
+    final h = bandH * 3;
+    final nodes = <SvgNode>[];
+    for (var i = 0; i < 3; i++) {
+      final svgY = (2 - i) * bandH;
+      nodes.add(SvgNode(
+        id: 'band_$i',
+        label: labels[i],
+        type: SvgNodeType.path,
+        pathData:
+            'M 0,$svgY L $w,$svgY L $w,${svgY + bandH} L 0,${svgY + bandH} Z',
+        settings: LayerSettings(operationType: OperationType.engrave),
+      ));
+    }
+    return SvgDocument(
+      roots: nodes,
+      viewBox: Rect.fromLTWH(0, 0, w, h),
+    );
+  }
+
+  void _onSpotTest() {
+    final cfg = SpotTestConfig(
+      powerPercent: _machineSettings.engravePower,
+      speedMmMin: _machineSettings.engraveSpeed,
+    );
+    setState(() {
+      _showFocusTest = false;
+      _showKerfTest = false;
+      _showSpotTest = true;
+      _spotTestConfig = cfg;
+      _spotTestDocument = _buildSpotTestDocument(cfg);
+    });
+  }
+
+  void _onSpotTestChanged(SpotTestConfig cfg) {
+    setState(() {
+      _spotTestConfig = cfg;
+    });
+  }
+
+  void _onCloseSpotTest() {
+    setState(() => _showSpotTest = false);
+  }
+
+  void _startSpotTestJob() {
+    final gcode = GcodeTemplates.spotTest(
+      _spotTestConfig,
+      _machineSettings,
+    );
+    final lines = gcode
+        .split('\n')
+        .map((l) => l.contains(';')
+            ? l.substring(0, l.indexOf(';')).trim()
+            : l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return;
+    _grbl.startLines(lines);
+  }
+
   // ── Node selection ───────────────────────────────────────────────
 
   void _toggleEnabled(SvgNode node) {
@@ -390,6 +459,7 @@ class _HomeScreenState extends State<HomeScreen> {
             onExportGcode: _document != null ? _exportGcode : null,
             onFocusTest: _onFocusTest,
             onKerfTest: _onKerfTest,
+            onSpotTest: _onSpotTest,
             isConnected: _grbl.connected,
             isSerialConnected: _grbl is GrblSerialService && _grbl.connected,
             onToggleConnect: () => _openConnectDialog(),
@@ -419,6 +489,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         kerfTestConfig: _kerfTestConfig,
                         onKerfTestChanged: _onKerfTestChanged,
                         onKerfTestClose: _onCloseKerfTest,
+                        showSpotTest: _showSpotTest,
+                        spotTestConfig: _spotTestConfig,
+                        onSpotTestChanged: _onSpotTestChanged,
+                        onSpotTestClose: _onCloseSpotTest,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),
@@ -428,7 +502,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             ? _focusTestDocument
                             : _showKerfTest
                                 ? _kerfTestDocument
-                                : _document,
+                                : _showSpotTest
+                                    ? _spotTestDocument
+                                    : _document,
                         machinePos: _grbl.connected
                             ? Offset(_grbl.x, _grbl.y)
                             : null,
@@ -449,13 +525,17 @@ class _HomeScreenState extends State<HomeScreen> {
                             ? _focusTestDocument
                             : _showKerfTest
                                 ? _kerfTestDocument
-                                : _document,
+                                : _showSpotTest
+                                    ? _spotTestDocument
+                                    : _document,
                         service: _grbl,
                         onStartJob: _showFocusTest
                             ? _startFocusTestJob
                             : _showKerfTest
                                 ? _startKerfTestJob
-                                : null,
+                                : _showSpotTest
+                                    ? _startSpotTestJob
+                                    : null,
                         onExportGcode:
                             _document != null ? _exportGcode : null,
                       ),

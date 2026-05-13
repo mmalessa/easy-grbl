@@ -9,6 +9,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onExportGcode;
   final VoidCallback onFocusTest;
   final VoidCallback onKerfTest;
+  final VoidCallback onSpotTest;
   final bool isConnected;
   final bool isSerialConnected;
   final VoidCallback onToggleConnect;
@@ -24,6 +25,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.onExportGcode,
     required this.onFocusTest,
     required this.onKerfTest,
+    required this.onSpotTest,
     required this.isConnected,
     required this.isSerialConnected,
     required this.onToggleConnect,
@@ -90,6 +92,11 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                     onPressed: onKerfTest,
                     leadingIcon: const Icon(Icons.straighten, size: 16),
                     child: const Text('Kerf Test'),
+                  ),
+                  MenuItemButton(
+                    onPressed: onSpotTest,
+                    leadingIcon: const Icon(Icons.grid_on, size: 16),
+                    child: const Text('Spot Size Test'),
                   ),
                 ],
                 child: const Text('Templates'),

@@ -5,11 +5,13 @@ import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import '../models/focus_test_config.dart';
 import '../models/kerf_test_config.dart';
+import '../models/spot_test_config.dart';
 import 'layers_panel.dart';
 import 'layer_settings_panel.dart';
 import 'panel_section_header.dart';
 import 'focus_test_panel.dart';
 import 'kerf_test_panel.dart';
+import 'spot_test_panel.dart';
 
 class LeftPanel extends StatefulWidget {
   final SvgDocument? document;
@@ -31,6 +33,12 @@ class LeftPanel extends StatefulWidget {
   final ValueChanged<KerfTestConfig> onKerfTestChanged;
   final VoidCallback onKerfTestClose;
 
+  // Spot Size Test
+  final bool showSpotTest;
+  final SpotTestConfig spotTestConfig;
+  final ValueChanged<SpotTestConfig> onSpotTestChanged;
+  final VoidCallback onSpotTestClose;
+
   const LeftPanel({
     super.key,
     required this.document,
@@ -47,6 +55,10 @@ class LeftPanel extends StatefulWidget {
     required this.kerfTestConfig,
     required this.onKerfTestChanged,
     required this.onKerfTestClose,
+    this.showSpotTest = false,
+    required this.spotTestConfig,
+    required this.onSpotTestChanged,
+    required this.onSpotTestClose,
   });
 
   @override
@@ -79,6 +91,15 @@ class _LeftPanelState extends State<LeftPanel> {
                 config: widget.kerfTestConfig,
                 onChanged: widget.onKerfTestChanged,
                 onClose: widget.onKerfTestClose,
+              ),
+            )
+          else if (widget.showSpotTest)
+            Expanded(
+              child: SpotTestPanel(
+                config: widget.spotTestConfig,
+                spotSize: widget.machineSettings.laserSpotSize,
+                onChanged: widget.onSpotTestChanged,
+                onClose: widget.onSpotTestClose,
               ),
             )
           else ...[

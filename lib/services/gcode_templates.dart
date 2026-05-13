@@ -1,6 +1,7 @@
 import '../models/machine_settings.dart';
 import '../models/focus_test_config.dart';
 import '../models/kerf_test_config.dart';
+import '../models/spot_test_config.dart';
 
 class GcodeTemplates {
   /// Focus Test — horizontal lines at varying Z heights.
@@ -96,4 +97,73 @@ class GcodeTemplates {
 
     return buf.toString();
   }
+
+  /// Spot Size Test — 9×9 mm square with 3 horizontal bands.
+  ///
+  /// Each band is filled with horizontal lines at a different spacing:
+  ///   Bottom: laserSpotSize − 0.1 mm
+  ///   Middle: laserSpotSize (exact)
+  ///   Top:    laserSpotSize + 0.1 mm
+  /// The user inspects which band looks best-filled to verify the spot size.
+  static String spotTest(SpotTestConfig cfg, MachineSettings s) {
+    final buf = StringBuffer();
+    final smax = s.sMax;
+    final spotSize = s.laserSpotSize;
+    final sVal =
+        (cfg.powerPercent / 100.0 * smax).round().clamp(0, smax);
+    const squareSize = 9.0;
+    const bandH = 3.0;
+    final spacings = [
+      (spotSize - 0.1).clamp(0.01, double.infinity),
+      spotSize,
+      spotSize + 0.1,
+    ];
+    const labels = ['−0.1 mm', 'exact', '+0.1 mm'];
+
+    buf
+      ..writeln('; Spot Size Test — EasyGRBL')
+      ..writeln('; 9 × 9 mm square, 3 horizontal bands')
+      ..writeln('; Laser spot: ${spotSize.toStringAsFixed(2)} mm')
+      ..writeln('; Power: ${cfg.powerPercent}%  (S$sVal / S$smax)')
+      ..writeln('; Speed: ${cfg.speedMmMin} mm/min')
+      ..writeln()
+      ..writeln('G21 ; metric')
+      ..writeln('G90 ; absolute')
+      ..writeln('M5 S0 ; laser off')
+      ..writeln('G0 X0 Y0 ; HOME')
+      ..writeln();
+
+    for (var band = 0; band < 3; band++) {
+      final spacing = spacings[band];
+      final y0 = band * bandH;
+      final y1 = y0 + bandH;
+      buf
+        ..writeln('; Band ${band + 1} — ${labels[band]}  spacing=${spacing.toStringAsFixed(3)} mm')
+        ..writeln();
+
+      var ltr = true;
+      var y = y0;
+      while (y < y1 - 0.001) {
+        final x0 = ltr ? 0.0 : squareSize;
+        final x1 = ltr ? squareSize : 0.0;
+        buf
+          ..writeln('G0 X${_f(x0)} Y${_f(y)}')
+          ..writeln('${s.laserMode.gcode} S$sVal')
+          ..writeln('G1 X${_f(x1)} F${cfg.speedMmMin}')
+          ..writeln('M5');
+        y += spacing;
+        ltr = !ltr;
+      }
+      buf.writeln();
+    }
+
+    buf
+      ..writeln('G0 X0 Y0 Z0 ; HOME')
+      ..writeln('M5 S0')
+      ..writeln('; End of Spot Size Test');
+
+    return buf.toString();
+  }
+
+  static String _f(double v) => v.toStringAsFixed(3);
 }
