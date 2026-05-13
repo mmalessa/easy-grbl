@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';

@@ -43,7 +43,6 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
           // ── File ──────────────────────────────────────────────────
           SubmenuButton(
             style: _menuButtonStyle(),
-            child: const Text('File'),
             menuChildren: [
               MenuItemButton(
                 onPressed: onOpenFile,
@@ -54,7 +53,6 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                 const Divider(height: 1),
                 SubmenuButton(
                   leadingIcon: const Icon(Icons.history, size: 16),
-                  child: const Text('Recent files'),
                   menuChildren: recentFiles
                       .map((f) => MenuItemButton(
                             onPressed: () => onOpenRecent(f.path, f.name),
@@ -64,6 +62,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                             ),
                           ))
                       .toList(),
+                  child: const Text('Recent files'),
                 ),
               ],
               if (onExportGcode != null) ...[
@@ -75,12 +74,12 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
               ],
             ],
+            child: const Text('File'),
           ),
 
           // ── Machine ───────────────────────────────────────────────
           SubmenuButton(
             style: _menuButtonStyle(),
-            child: const Text('Machine'),
             menuChildren: [
               MenuItemButton(
                 onPressed: onToggleConnect,
@@ -108,6 +107,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                 child: const Text('Settings…'),
               ),
             ],
+            child: const Text('Machine'),
           ),
         ],
       ),

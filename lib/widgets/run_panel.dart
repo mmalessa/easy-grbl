@@ -28,7 +28,7 @@ class RunPanel extends StatelessWidget {
     );
   }
 
-  static Widget _IconBtn({
+  static Widget _iconBtn({
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
@@ -110,7 +110,7 @@ class RunPanel extends StatelessWidget {
               ),
               if (onExportGcode != null) ...[
                 const SizedBox(width: 6),
-                _IconBtn(
+                _iconBtn(
                   icon: Icons.code,
                   color: const Color(0xFF1565C0),
                   tooltip: 'Export G-code',

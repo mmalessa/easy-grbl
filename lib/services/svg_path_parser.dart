@@ -1,6 +1,5 @@
 import 'dart:ui';
 import 'svg_path_model.dart';
-import 'package:path_drawing/path_drawing.dart';
 
 class SvgPathParser {
   /// Wyciąga wszystkie ścieżki z SVG i konwertuje różne elementy na ścieżki

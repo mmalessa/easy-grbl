@@ -25,7 +25,7 @@ class _GcodeDialogState extends State<_GcodeDialog> {
   bool _copied = false;
 
   String get _suggestedName =>
-      widget.sourceFilename.replaceAll(RegExp(r'\.[^.]+$'), '') + '.nc';
+      '${widget.sourceFilename.replaceAll(RegExp(r'\.[^.]+$'), '')}.nc';
 
   int get _lineCount => '\n'.allMatches(widget.gcode).length + 1;
 
