@@ -4,10 +4,12 @@ import '../models/svg_node.dart';
 import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import '../models/focus_test_config.dart';
+import '../models/kerf_test_config.dart';
 import 'layers_panel.dart';
 import 'layer_settings_panel.dart';
 import 'panel_section_header.dart';
 import 'focus_test_panel.dart';
+import 'kerf_test_panel.dart';
 
 class LeftPanel extends StatefulWidget {
   final SvgDocument? document;
@@ -23,6 +25,12 @@ class LeftPanel extends StatefulWidget {
   final ValueChanged<FocusTestConfig> onFocusTestChanged;
   final VoidCallback onFocusTestClose;
 
+  // Kerf Test
+  final bool showKerfTest;
+  final KerfTestConfig kerfTestConfig;
+  final ValueChanged<KerfTestConfig> onKerfTestChanged;
+  final VoidCallback onKerfTestClose;
+
   const LeftPanel({
     super.key,
     required this.document,
@@ -35,6 +43,10 @@ class LeftPanel extends StatefulWidget {
     required this.focusTestConfig,
     required this.onFocusTestChanged,
     required this.onFocusTestClose,
+    this.showKerfTest = false,
+    required this.kerfTestConfig,
+    required this.onKerfTestChanged,
+    required this.onKerfTestClose,
   });
 
   @override
@@ -59,6 +71,14 @@ class _LeftPanelState extends State<LeftPanel> {
                 config: widget.focusTestConfig,
                 onChanged: widget.onFocusTestChanged,
                 onClose: widget.onFocusTestClose,
+              ),
+            )
+          else if (widget.showKerfTest)
+            Expanded(
+              child: KerfTestPanel(
+                config: widget.kerfTestConfig,
+                onChanged: widget.onKerfTestChanged,
+                onClose: widget.onKerfTestClose,
               ),
             )
           else ...[

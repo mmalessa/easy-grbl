@@ -1,5 +1,6 @@
 import '../models/machine_settings.dart';
 import '../models/focus_test_config.dart';
+import '../models/kerf_test_config.dart';
 
 class GcodeTemplates {
   /// Focus Test — horizontal lines at varying Z heights.
@@ -49,42 +50,41 @@ class GcodeTemplates {
     return buf.toString();
   }
 
-  /// Kerf Test — 6 horizontal lines at increasing power levels.
+  /// Kerf Test — horizontal lines at increasing power levels.
   ///
-  /// Each line is 10 mm long, spaced 2 mm apart.
-  /// Power steps: 10%, 30%, 50%, 70%, 90%, 100%.
+  /// Lines at increasing power percentages.
   /// The user measures the burn width to determine kerf vs. power.
-  static String kerfTest(MachineSettings s) {
+  static String kerfTest(KerfTestConfig cfg, MachineSettings s) {
     final buf = StringBuffer();
     final smax = s.sMax;
-    final speed = s.engraveSpeed;
-    const powers = [10, 30, 50, 70, 90, 100];
+    final speed = cfg.speedMmMin;
+    final powers = cfg.powerLevels;
+    final maxPct = cfg.maxPowerPercent;
 
     buf
       ..writeln('; Kerf Test — EasyGRBL')
-      ..writeln('; 6 horizontal lines × 10 mm long, spaced 2 mm apart')
-      ..writeln('; Power ramp: ${powers.join("%, ")}%')
+      ..writeln('; ${cfg.lineCount} horizontal lines × ${cfg.widthMm.toStringAsFixed(0)} mm long')
+      ..writeln('; Spacing: ${cfg.lineSpacing.toStringAsFixed(0)} mm')
+      ..writeln('; Power ramp: ${powers.join("%, ")}%  (max $maxPct%)')
       ..writeln('; Speed: $speed mm/min')
       ..writeln()
       ..writeln('G21 ; metric')
       ..writeln('G90 ; absolute')
       ..writeln('M5 S0 ; laser off')
-      ..writeln()
-      ..writeln('G0 Z5')
-      ..writeln('G0 X0 Y0')
+      ..writeln('G0 X0 Y0 ; HOME')
       ..writeln();
 
     for (var i = 0; i < powers.length; i++) {
       final pct = powers[i];
       final sVal = (pct / 100.0 * smax).round().clamp(0, smax);
-      final y = i * -2; // 0, -2, -4, -6, -8, -10
+      final y = i * cfg.lineSpacing.toInt();
 
       buf
         ..writeln('; $pct% power  (S$sVal)')
         ..writeln('G0 X0 Y$y')
         ..writeln('G0 Z0')
         ..writeln('${s.laserMode.gcode} S$sVal')
-        ..writeln('G1 X10 F$speed')
+        ..writeln('G1 X${cfg.widthMm.toStringAsFixed(0)} F$speed')
         ..writeln('M5')
         ..writeln();
     }

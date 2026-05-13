@@ -16,6 +16,7 @@ import '../../services/gcode_templates.dart';
 import '../../services/toolpath.dart';
 import '../../models/machine_settings.dart';
 import '../../models/focus_test_config.dart';
+import '../../models/kerf_test_config.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/connect_dialog.dart';
 import '../../widgets/machine_settings_dialog.dart';
@@ -62,6 +63,11 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _showFocusTest = false;
   FocusTestConfig _focusTestConfig = const FocusTestConfig();
   SvgDocument? _focusTestDocument;
+
+  // Kerf Test
+  bool _showKerfTest = false;
+  KerfTestConfig _kerfTestConfig = const KerfTestConfig();
+  SvgDocument? _kerfTestDocument;
 
   @override
   void dispose() {
@@ -206,6 +212,7 @@ class _HomeScreenState extends State<HomeScreen> {
       speedMmMin: _machineSettings.engraveSpeed,
     );
     setState(() {
+      _showKerfTest = false;
       _showFocusTest = true;
       _focusTestConfig = cfg;
       _focusTestDocument = _buildFocusTestDocument(cfg);
@@ -239,9 +246,67 @@ class _HomeScreenState extends State<HomeScreen> {
     _grbl.startLines(lines);
   }
 
+  SvgDocument _buildKerfTestDocument(KerfTestConfig cfg) {
+    final powers = cfg.powerLevels;
+    final nodes = <SvgNode>[];
+    for (var i = 0; i < cfg.lineCount; i++) {
+      final svgY = (cfg.lineCount - 1 - i) * cfg.lineSpacing.toInt();
+      final pct = powers[i];
+      nodes.add(SvgNode(
+        id: 'line_$i',
+        label: '$pct% power',
+        type: SvgNodeType.path,
+        pathData: 'M 0,$svgY L ${cfg.widthMm},$svgY',
+        settings: LayerSettings(
+          operationType: OperationType.engrave,
+        ),
+      ));
+    }
+    final h = (cfg.lineCount - 1) * cfg.lineSpacing;
+    return SvgDocument(
+      roots: nodes,
+      viewBox: Rect.fromLTWH(0, 0, cfg.widthMm, h),
+    );
+  }
+
   void _onKerfTest() {
-    final gcode = GcodeTemplates.kerfTest(_machineSettings);
-    showGcodeDialog(context, gcode, 'kerf-test.nc');
+    final cfg = KerfTestConfig(
+      maxPowerPercent: _machineSettings.engravePower,
+      speedMmMin: _machineSettings.engraveSpeed,
+    );
+    setState(() {
+      _showFocusTest = false;
+      _showKerfTest = true;
+      _kerfTestConfig = cfg;
+      _kerfTestDocument = _buildKerfTestDocument(cfg);
+    });
+  }
+
+  void _onKerfTestChanged(KerfTestConfig cfg) {
+    setState(() {
+      _kerfTestConfig = cfg;
+      _kerfTestDocument = _buildKerfTestDocument(cfg);
+    });
+  }
+
+  void _onCloseKerfTest() {
+    setState(() => _showKerfTest = false);
+  }
+
+  void _startKerfTestJob() {
+    final gcode = GcodeTemplates.kerfTest(
+      _kerfTestConfig,
+      _machineSettings,
+    );
+    final lines = gcode
+        .split('\n')
+        .map((l) => l.contains(';')
+            ? l.substring(0, l.indexOf(';')).trim()
+            : l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+    if (lines.isEmpty) return;
+    _grbl.startLines(lines);
   }
 
   // ── Node selection ───────────────────────────────────────────────
@@ -350,13 +415,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         focusTestConfig: _focusTestConfig,
                         onFocusTestChanged: _onFocusTestChanged,
                         onFocusTestClose: _onCloseFocusTest,
+                        showKerfTest: _showKerfTest,
+                        kerfTestConfig: _kerfTestConfig,
+                        onKerfTestChanged: _onKerfTestChanged,
+                        onKerfTestClose: _onCloseKerfTest,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),
                     Expanded(
                       child: SvgPreviewWidget(
-                        document:
-                            _showFocusTest ? _focusTestDocument : _document,
+                        document: _showFocusTest
+                            ? _focusTestDocument
+                            : _showKerfTest
+                                ? _kerfTestDocument
+                                : _document,
                         machinePos: _grbl.connected
                             ? Offset(_grbl.x, _grbl.y)
                             : null,
@@ -373,10 +445,17 @@ class _HomeScreenState extends State<HomeScreen> {
                     SizedBox(
                       width: 290,
                       child: RightPanel(
-                        document: _showFocusTest ? _focusTestDocument : _document,
+                        document: _showFocusTest
+                            ? _focusTestDocument
+                            : _showKerfTest
+                                ? _kerfTestDocument
+                                : _document,
                         service: _grbl,
-                        onStartJob:
-                            _showFocusTest ? _startFocusTestJob : null,
+                        onStartJob: _showFocusTest
+                            ? _startFocusTestJob
+                            : _showKerfTest
+                                ? _startKerfTestJob
+                                : null,
                         onExportGcode:
                             _document != null ? _exportGcode : null,
                       ),
