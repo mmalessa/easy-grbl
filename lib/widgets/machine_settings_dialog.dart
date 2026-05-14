@@ -126,51 +126,30 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                 _spotSizeRow(),
 
                 const SizedBox(height: 20),
-                // ── Engrave defaults ─────────────────────────────────
-                _sectionHeader('DEFAULTS — ENGRAVE'),
-                _sliderRow(
-                  'Power',
-                  _engravePower,
-                  OperationType.engrave.color,
-                  (v) => setState(() => _engravePower = v),
-                ),
-                const SizedBox(height: 14),
-                _speedRow(
-                  'Speed (mm/min)',
-                  _engraveSpeedCtrl,
-                  OperationType.engrave.color,
-                ),
-
-                const SizedBox(height: 20),
-                // ── Cut defaults ─────────────────────────────────────
-                _sectionHeader('DEFAULTS — CUT'),
-                _sliderRow(
-                  'Power',
-                  _cutPower,
-                  OperationType.cut.color,
-                  (v) => setState(() => _cutPower = v),
-                ),
-                const SizedBox(height: 14),
-                _speedRow(
-                  'Speed (mm/min)',
-                  _cutSpeedCtrl,
-                  OperationType.cut.color,
-                ),
-
-                const SizedBox(height: 20),
-                // ── Fill defaults ─────────────────────────────────────
-                _sectionHeader('DEFAULTS — FILL'),
-                _sliderRow(
-                  'Power',
-                  _fillPower,
-                  OperationType.fill.color,
-                  (v) => setState(() => _fillPower = v),
-                ),
-                const SizedBox(height: 14),
-                _speedRow(
-                  'Speed (mm/min)',
-                  _fillSpeedCtrl,
-                  OperationType.fill.color,
+                // ── Defaults ──────────────────────────────────────────
+                _sectionHeader('DEFAULTS'),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[850],
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.grey[700]!),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _defaultRow(OperationType.cut, _cutPower,
+                          _cutSpeedCtrl, (v) => setState(() => _cutPower = v)),
+                      const SizedBox(height: 10),
+                      _defaultRow(OperationType.fill, _fillPower,
+                          _fillSpeedCtrl, (v) => setState(() => _fillPower = v)),
+                      const SizedBox(height: 10),
+                      _defaultRow(OperationType.engrave, _engravePower,
+                          _engraveSpeedCtrl, (v) => setState(() => _engravePower = v)),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 20),
@@ -253,40 +232,114 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
         }).toList(),
       );
 
-  Widget _sliderRow(String label, double value, Color color,
-      ValueChanged<double> onChanged) {
+  Widget _defaultRow(OperationType type, double power,
+      TextEditingController speedCtrl, ValueChanged<double> onPowerChanged) {
+    final color = type.color;
+    final valid = _parseSpeed(speedCtrl) != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          _fieldLabel(label),
-          const Spacer(),
-          Text(
-            '${value.round()}%',
+        Padding(
+          padding: const EdgeInsets.only(bottom: 4),
+          child: Text(
+            type.label,
             style: TextStyle(
-                color: color, fontSize: 12, fontWeight: FontWeight.w700),
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5),
           ),
-        ]),
-        SliderTheme(
-          data: SliderThemeData(
-            activeTrackColor: color,
-            thumbColor: color,
-            overlayColor: color.withValues(alpha: 0.15),
-            inactiveTrackColor: Colors.grey[700],
-            trackHeight: 2,
-            thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-          ),
-          child: SizedBox(
-            height: 28,
-            child: Slider(
-              value: value,
-              min: 0,
-              max: 100,
-              divisions: 100,
-              onChanged: onChanged,
+        ),
+        Row(
+          children: [
+            Text('Power',
+                style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+            const SizedBox(width: 6),
+            SizedBox(
+              width: 90,
+              height: 24,
+              child: SliderTheme(
+                data: SliderThemeData(
+                  activeTrackColor: color,
+                  thumbColor: color,
+                  overlayColor: color.withValues(alpha: 0.15),
+                  inactiveTrackColor: Colors.grey[700],
+                  trackHeight: 2,
+                  thumbShape:
+                      const RoundSliderThumbShape(enabledThumbRadius: 5),
+                  overlayShape:
+                      const RoundSliderOverlayShape(overlayRadius: 10),
+                ),
+                child: Slider(
+                  value: power,
+                  min: 0,
+                  max: 100,
+                  divisions: 100,
+                  onChanged: onPowerChanged,
+                ),
+              ),
             ),
-          ),
+            SizedBox(
+              width: 30,
+              child: Text(
+                '${power.round()}%',
+                style: TextStyle(
+                    color: color,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text('Speed',
+                style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+            const SizedBox(width: 4),
+            _stepBtn(Icons.remove, color, () {
+              final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
+              speedCtrl.text =
+                  '${(v - 100).clamp(_kSpeedMin, _kSpeedMax)}';
+            }),
+            const SizedBox(width: 2),
+            SizedBox(
+              width: 56,
+              child: TextField(
+                controller: speedCtrl,
+                style: TextStyle(
+                    color: valid ? Colors.white70 : Colors.red[300],
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 4, vertical: 5),
+                  filled: true,
+                  fillColor: Colors.grey[800],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(
+                        color: valid ? Colors.grey[600]! : Colors.red),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(
+                        color: valid ? Colors.grey[600]! : Colors.red),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(4),
+                    borderSide: BorderSide(
+                        color: valid ? const Color(0xFF1565C0) : Colors.red),
+                  ),
+                ),
+                keyboardType: TextInputType.number,
+              ),
+            ),
+            const SizedBox(width: 2),
+            _stepBtn(Icons.add, color, () {
+              final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
+              speedCtrl.text =
+                  '${(v + 100).clamp(_kSpeedMin, _kSpeedMax)}';
+            }),
+          ],
         ),
       ],
     );
@@ -321,74 +374,6 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
           Text('mm', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
         ],
       );
-
-  Widget _speedRow(
-      String label, TextEditingController ctrl, Color color) {
-    final valid = _parseSpeed(ctrl) != null;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            _fieldLabel(label),
-            const Spacer(),
-            _stepBtn(Icons.remove, color, () {
-              final v = int.tryParse(ctrl.text.trim()) ?? _kSpeedMin;
-              ctrl.text = '${(v - 100).clamp(_kSpeedMin, _kSpeedMax)}';
-            }),
-            const SizedBox(width: 4),
-            SizedBox(
-              width: 72,
-              child: TextField(
-                controller: ctrl,
-                style: TextStyle(
-                    color: valid ? Colors.white70 : Colors.red[300],
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-                  filled: true,
-                  fillColor: Colors.grey[800],
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                        color: valid ? Colors.grey[600]! : Colors.red),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                        color: valid ? Colors.grey[600]! : Colors.red),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                        color: valid ? const Color(0xFF1565C0) : Colors.red),
-                  ),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ),
-            const SizedBox(width: 4),
-            _stepBtn(Icons.add, color, () {
-              final v = int.tryParse(ctrl.text.trim()) ?? _kSpeedMin;
-              ctrl.text = '${(v + 100).clamp(_kSpeedMin, _kSpeedMax)}';
-            }),
-          ],
-        ),
-        if (!valid)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              '$_kSpeedMin – $_kSpeedMax mm/min',
-              style: TextStyle(color: Colors.red[400], fontSize: 10),
-            ),
-          ),
-      ],
-    );
-  }
 
   Widget _numericField(TextEditingController ctrl,
           {required double width, required bool decimal}) =>
