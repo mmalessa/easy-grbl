@@ -14,6 +14,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool isSerialConnected;
   final VoidCallback onToggleConnect;
   final VoidCallback onMachineSettings;
+  final VoidCallback onAbout;
 
   const MainAppBar({
     super.key,
@@ -28,6 +29,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.isSerialConnected,
     required this.onToggleConnect,
     required this.onMachineSettings,
+    required this.onAbout,
   });
 
   @override
@@ -121,6 +123,18 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             ],
             child: const Text('Machine'),
+          ),
+
+          SubmenuButton(
+            style: _menuButtonStyle(cs),
+            menuChildren: [
+              MenuItemButton(
+                onPressed: onAbout,
+                leadingIcon: const Icon(Icons.info_outline, size: 16),
+                child: const Text('About'),
+              ),
+            ],
+            child: const Text('Help'),
           ),
         ],
       ),

@@ -93,6 +93,26 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _onAbout() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'EasyGRBL',
+      applicationVersion: 'build 2026-05-14',
+      applicationIcon: const Icon(Icons.lightbulb_outline, size: 48),
+      children: [
+        const SizedBox(height: 8),
+        const Padding(
+          padding: EdgeInsets.only(bottom: 4),
+          child: Text('github.com/mmalessa/easy-grbl'),
+        ),
+        Text(
+          '(c) 2026 github.com/mmalessa',
+          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+        ),
+      ],
+    );
+  }
+
   Future<void> _openConnectDialog() async {
     // Serial connection: clicking the button toggles disconnect.
     if (_grbl is GrblSerialService && _grbl.connected) {
@@ -464,6 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
             isSerialConnected: _grbl is GrblSerialService && _grbl.connected,
             onToggleConnect: () => _openConnectDialog(),
             onMachineSettings: _openMachineSettings,
+            onAbout: _onAbout,
           ),
           body: Column(
             children: [
