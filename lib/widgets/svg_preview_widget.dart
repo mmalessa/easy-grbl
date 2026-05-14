@@ -109,21 +109,7 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
     );
   }
 
-  Widget _buildEmpty() => Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.folder_open_outlined,
-                size: 56, color: Colors.grey[500]),
-            const SizedBox(height: 12),
-            Text('Open an SVG file to get started',
-                style: TextStyle(color: Colors.grey[700], fontSize: 13)),
-            const SizedBox(height: 4),
-            Text('File → Open SVG file',
-                style: TextStyle(color: Colors.grey[600], fontSize: 11)),
-          ],
-        ),
-      );
+  Widget _buildEmpty() => const SizedBox.shrink();
 
   Widget _buildCanvas() {
     return SizedBox.expand(child: _buildInteractiveArea());
