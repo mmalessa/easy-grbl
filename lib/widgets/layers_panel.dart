@@ -18,8 +18,8 @@ class LayersPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (roots.isEmpty) {
-      return const Center(
-        child: Text('No elements', style: TextStyle(color: Colors.grey, fontSize: 12)),
+      return Center(
+        child: Text('No elements', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12)),
       );
     }
     return ListView(
@@ -99,7 +99,7 @@ class _NodeTileState extends State<NodeTile> {
                 Icon(
                   _icon(node.type),
                   size: 13,
-                  color: node.isGroup ? opColor : Colors.grey[600],
+                  color: node.isGroup ? opColor : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 4),
                 // Label
@@ -108,7 +108,7 @@ class _NodeTileState extends State<NodeTile> {
                     node.label,
                     style: TextStyle(
                       fontSize: 12,
-                      color: node.enabled ? null : Colors.grey[400],
+                      color: node.enabled ? null : Theme.of(context).colorScheme.onSurfaceVariant,
                       fontWeight: node.isGroup ? FontWeight.w600 : FontWeight.normal,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -123,7 +123,7 @@ class _NodeTileState extends State<NodeTile> {
                     child: Icon(
                       node.enabled ? Icons.visibility_outlined : Icons.visibility_off_outlined,
                       size: 13,
-                      color: node.enabled ? Colors.grey[500] : Colors.grey[400],
+                      color: node.enabled ? Theme.of(context).colorScheme.onSurfaceVariant : Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                   ),
                 ),

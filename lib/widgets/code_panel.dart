@@ -28,18 +28,19 @@ class _CodePanelState extends State<CodePanel> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ListenableBuilder(
       listenable: widget.service,
       builder: (context, _) {
         _scrollToEnd();
         final log = widget.service.commLog;
         return Container(
-          color: const Color(0xFF1A1A1A),
+          color: cs.surfaceContainerHighest,
           child: log.isEmpty
               ? Center(
                   child: Text(
                     'No activity',
-                    style: TextStyle(color: Colors.grey[700], fontSize: 13),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
                   ),
                 )
               : ListView.builder(
@@ -51,10 +52,10 @@ class _CodePanelState extends State<CodePanel> {
                     final e = log[i];
                     final isComment = e.text.startsWith(';');
                     final Color color = isComment
-                        ? Colors.grey[600]!
+                        ? cs.onSurfaceVariant
                         : e.rx
-                            ? const Color(0xFF81C784)
-                            : const Color(0xFF80DEEA);
+                            ? Colors.green
+                            : Colors.cyan;
                     return Text(
                       e.rx ? '< ${e.text}' : '> ${e.text}',
                       style: TextStyle(

@@ -166,8 +166,9 @@ class _JogBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
-      color: enabled ? Colors.grey[200] : Colors.grey[100],
+      color: enabled ? cs.surfaceContainerLow : cs.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(5),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -179,13 +180,13 @@ class _JogBtn extends StatelessWidget {
             child: icon != null
                 ? Icon(icon,
                     size: 20,
-                    color: enabled ? Colors.grey[800] : Colors.grey[400])
+                    color: enabled ? cs.onSurface : cs.onSurfaceVariant)
                 : Text(
                     label!,
                     style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: enabled ? Colors.grey[800] : Colors.grey[400],
+                      color: enabled ? cs.onSurface : cs.onSurfaceVariant,
                     ),
                   ),
           ),
@@ -233,10 +234,11 @@ class _StepChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
+        color: cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -251,8 +253,8 @@ class _StepChip extends StatelessWidget {
                         horizontal: 5, vertical: 3),
                     decoration: BoxDecoration(
                       color: value == s
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.grey[200],
+                          ? cs.primary
+                          : cs.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -261,15 +263,15 @@ class _StepChip extends StatelessWidget {
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                         color: value == s
-                            ? Colors.white
-                            : Colors.grey[700],
+                            ? cs.onPrimary
+                            : cs.onSurfaceVariant,
                       ),
                     ),
                   ),
                 ),
               ))),
           Text('mm',
-              style: TextStyle(fontSize: 10, color: Colors.grey[500])),
+              style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant)),
         ],
       ),
     );
@@ -293,8 +295,9 @@ class _CmdBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Material(
-      color: enabled ? Colors.grey[200] : Colors.grey[100],
+      color: enabled ? cs.surfaceContainerLow : cs.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(5),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -306,13 +309,13 @@ class _CmdBtn extends StatelessWidget {
             children: [
               Icon(icon,
                   size: 13,
-                  color: enabled ? Colors.grey[700] : Colors.grey[400]),
+                  color: enabled ? cs.onSurfaceVariant : cs.onSurfaceVariant.withValues(alpha: 0.5)),
               const SizedBox(width: 4),
               Text(
                 label,
                 style: TextStyle(
                   fontSize: 11,
-                  color: enabled ? Colors.grey[800] : Colors.grey[400],
+                  color: enabled ? cs.onSurface : cs.onSurfaceVariant,
                 ),
               ),
             ],

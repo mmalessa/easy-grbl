@@ -70,10 +70,11 @@ class _LeftPanelState extends State<LeftPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final hasSettings = widget.selectedNode != null;
 
     return Container(
-      color: Colors.grey[50],
+      color: cs.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -110,12 +111,10 @@ class _LeftPanelState extends State<LeftPanel> {
             ),
             Expanded(
               child: widget.document == null
-                  ? const Center(
+                  ? Center(
                       child: Text(
                         'No file loaded',
-                        style: TextStyle(color: Colors.grey, fontSize: 12),
-                      ),
-                    )
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)))
                   : LayersPanel(
                       roots: widget.document!.roots,
                       onToggleEnabled: widget.onToggleEnabled,
@@ -171,6 +170,7 @@ class _DragHandle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return GestureDetector(
       onVerticalDragUpdate: (d) => onDrag(d.delta.dy),
       child: Container(
@@ -181,7 +181,7 @@ class _DragHandle extends StatelessWidget {
           width: 32,
           height: 4,
           decoration: BoxDecoration(
-            color: Colors.grey[350],
+            color: cs.outlineVariant,
             borderRadius: BorderRadius.circular(2),
           ),
         ),

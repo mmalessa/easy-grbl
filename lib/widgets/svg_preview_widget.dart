@@ -4,16 +4,12 @@ import '../models/svg_document.dart';
 import '../services/toolpath.dart';
 import 'svg_document_painter.dart';
 
-/// Visual margin (in pixels) around the SVG work area so ruler labels
-/// at the viewBox edges have room to be displayed without clipping.
 const _marginPx = 14.0;
 
 class SvgPreviewWidget extends StatefulWidget {
   final SvgDocument? document;
   final Offset? machinePos;
-  /// Pre-computed toolpath to optionally overlay on the canvas.
   final ToolpathData? toolpath;
-  /// Double-click callback — receives machine coordinates (X right, Y up).
   final void Function(double x, double y)? onJogTo;
 
   const SvgPreviewWidget({
@@ -36,7 +32,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
   bool _showRulers = true;
   bool _showToolpath = false;
 
-  // Click / double-click detection (Listener-based to avoid gesture arena conflicts)
   Offset? _pointerDown;
   bool _pointerMoved = false;
   DateTime? _lastTapTime;
@@ -48,9 +43,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
     super.dispose();
   }
 
-  // ── Coordinate math ──────────────────────────────────────────────
-
-  /// Viewport pixel → SVG coordinate (accounts for IV transform + painter centering).
   Offset? _viewportToSvg(Offset vp) {
     final doc = widget.document;
     if (doc == null || _canvasSize == Size.zero) return null;
@@ -69,8 +61,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
     }
   }
 
-  // ── Zoom controls ────────────────────────────────────────────────
-
   void _zoom(double factor) {
     if (_canvasSize == Size.zero) return;
     final cx = _canvasSize.width / 2;
@@ -87,8 +77,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
       ..setEntry(1, 3, cy * (1 - f) + ty * f);
   }
 
-  // ── Double-click → jog to position ──────────────────────────────
-
   void _onDoubleClick(Offset viewportPos) {
     final doc = widget.document;
     if (doc == null) return;
@@ -98,24 +86,23 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
     widget.onJogTo?.call(svgPos.dx - vb.left, vb.bottom - svgPos.dy);
   }
 
-  // ── Build ────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
-      color: const Color(0xFFE0E0E0),
+      color: cs.surfaceContainerHighest,
       child:
-          widget.document == null ? _buildEmpty() : _buildCanvas(),
+          widget.document == null ? _buildEmpty() : _buildCanvas(cs),
     );
   }
 
   Widget _buildEmpty() => const SizedBox.shrink();
 
-  Widget _buildCanvas() {
-    return SizedBox.expand(child: _buildInteractiveArea());
+  Widget _buildCanvas(ColorScheme cs) {
+    return SizedBox.expand(child: _buildInteractiveArea(cs));
   }
 
-  Widget _buildInteractiveArea() {
+  Widget _buildInteractiveArea(ColorScheme cs) {
     return LayoutBuilder(builder: (_, constraints) {
       final size = Size(constraints.maxWidth, constraints.maxHeight);
       if (_canvasSize != size) {
@@ -126,7 +113,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
         });
       }
       return Stack(children: [
-        // IV canvas with pointer tracking
         Listener(
           onPointerDown: (e) {
             _pointerDown = e.localPosition;
@@ -186,7 +172,6 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
           ),
         ),
 
-        // Cursor coordinates — bottom left (displayed in machine coords: origin at bottom-left)
         if (_cursorSvg != null)
           Positioned(
             bottom: 6,
@@ -194,10 +179,10 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
             child: _CursorCoords(
               svgPos: _cursorSvg!,
               viewBox: widget.document!.viewBox,
+              cs: cs,
             ),
           ),
 
-        // Controls — bottom right
         Positioned(
           bottom: 6,
           right: 6,
@@ -214,6 +199,7 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
             hasToolpath: widget.toolpath != null,
             onToggleToolpath: () =>
                 setState(() => _showToolpath = !_showToolpath),
+            cs: cs,
           ),
         ),
       ]);
@@ -221,28 +207,26 @@ class _SvgPreviewWidgetState extends State<SvgPreviewWidget> {
   }
 }
 
-// ── Overlays ─────────────────────────────────────────────────────────────────
-
 class _CursorCoords extends StatelessWidget {
   final Offset svgPos;
   final Rect viewBox;
-  const _CursorCoords({required this.svgPos, required this.viewBox});
+  final ColorScheme cs;
+  const _CursorCoords({required this.svgPos, required this.viewBox, required this.cs});
 
   @override
   Widget build(BuildContext context) {
-    // Convert SVG coords to machine coords: origin at bottom-left of work area
     final mx = svgPos.dx - viewBox.left;
     final my = viewBox.bottom - svgPos.dy;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.65),
+        color: cs.onSurface.withValues(alpha: 0.65),
         borderRadius: BorderRadius.circular(3),
       ),
       child: Text(
         'X ${mx.toStringAsFixed(2)}  Y ${my.toStringAsFixed(2)}',
-        style: const TextStyle(
-          color: Colors.white70,
+        style: TextStyle(
+          color: cs.surface,
           fontSize: 10,
           fontFamily: 'monospace',
         ),
@@ -255,6 +239,7 @@ class _CanvasControls extends StatelessWidget {
   final bool showGrid, showRulers, showToolpath, hasToolpath;
   final VoidCallback onZoomIn, onZoomOut, onFit;
   final VoidCallback onToggleGrid, onToggleRulers, onToggleToolpath;
+  final ColorScheme cs;
 
   const _CanvasControls({
     required this.showGrid,
@@ -267,46 +252,47 @@ class _CanvasControls extends StatelessWidget {
     required this.onToggleGrid,
     required this.onToggleRulers,
     required this.onToggleToolpath,
+    required this.cs,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.60),
+        color: cs.onSurface.withValues(alpha: 0.60),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _btn(Icons.straighten, onToggleRulers,
-              showRulers ? 'Hide rulers' : 'Show rulers',
+              'Hide rulers', 'Show rulers',
               active: showRulers),
           _btn(Icons.grid_4x4, onToggleGrid,
-              showGrid ? 'Hide grid' : 'Show grid',
+              'Hide grid', 'Show grid',
               active: showGrid),
           _btn(Icons.route, onToggleToolpath,
-              showToolpath ? 'Hide toolpath' : 'Show toolpath',
+              'Hide toolpath', 'Show toolpath',
               active: showToolpath,
               disabled: !hasToolpath),
-          Container(width: 1, height: 16, color: Colors.white12),
-          _btn(Icons.add, onZoomIn, 'Zoom in (+)'),
-          _btn(Icons.remove, onZoomOut, 'Zoom out (-)'),
-          _btn(Icons.fit_screen, onFit, 'Fit to view'),
+          Container(width: 1, height: 16, color: cs.surface.withValues(alpha: 0.12)),
+          _btn(Icons.add, onZoomIn, 'Zoom in (+)', 'Zoom in (+)'),
+          _btn(Icons.remove, onZoomOut, 'Zoom out (-)', 'Zoom out (-)'),
+          _btn(Icons.fit_screen, onFit, 'Fit to view', 'Fit to view'),
         ],
       ),
     );
   }
 
-  Widget _btn(IconData icon, VoidCallback onTap, String tooltip,
+  Widget _btn(IconData icon, VoidCallback onTap, String tooltipOn, String tooltipOff,
       {bool active = false, bool disabled = false}) {
     final color = disabled
-        ? Colors.white.withValues(alpha: 0.2)
+        ? cs.surface.withValues(alpha: 0.2)
         : active
             ? Colors.lightBlue.shade300
-            : Colors.white.withValues(alpha: 0.6);
+            : cs.surface.withValues(alpha: 0.6);
     return Tooltip(
-      message: tooltip,
+      message: active ? tooltipOn : tooltipOff,
       waitDuration: const Duration(milliseconds: 600),
       child: InkWell(
         onTap: disabled ? null : onTap,

@@ -99,16 +99,16 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ListenableBuilder(
       listenable: Listenable.merge(
           [_engraveSpeedCtrl, _cutSpeedCtrl, _fillSpeedCtrl]),
       builder: (context, _) => AlertDialog(
-        backgroundColor: Colors.grey[900],
         title: Row(children: [
-          const Icon(Icons.settings, size: 18, color: Colors.white70),
+          Icon(Icons.settings, size: 18, color: cs.onSurface.withValues(alpha: 0.7)),
           const SizedBox(width: 8),
-          const Text('Machine Settings',
-              style: TextStyle(color: Colors.white, fontSize: 15)),
+          Text('Machine Settings',
+              style: TextStyle(color: cs.onSurface, fontSize: 15)),
         ]),
         content: SizedBox(
           width: 380,
@@ -117,45 +117,42 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // ── Laser ───────────────────────────────────────────
-                _sectionHeader('LASER'),
-                _laserModeSelector(),
+                _sectionHeader('LASER', cs),
+                _laserModeSelector(cs),
                 const SizedBox(height: 14),
-                _sMaxRow(),
+                _sMaxRow(cs),
                 const SizedBox(height: 14),
-                _spotSizeRow(),
+                _spotSizeRow(cs),
 
                 const SizedBox(height: 20),
-                // ── Defaults ──────────────────────────────────────────
-                _sectionHeader('DEFAULTS'),
+                _sectionHeader('DEFAULTS', cs),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
                   decoration: BoxDecoration(
-                    color: Colors.grey[850],
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey[700]!),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       _defaultRow(OperationType.cut, _cutPower,
-                          _cutSpeedCtrl, (v) => setState(() => _cutPower = v)),
+                          _cutSpeedCtrl, (v) => setState(() => _cutPower = v), cs),
                       const SizedBox(height: 10),
                       _defaultRow(OperationType.fill, _fillPower,
-                          _fillSpeedCtrl, (v) => setState(() => _fillPower = v)),
+                          _fillSpeedCtrl, (v) => setState(() => _fillPower = v), cs),
                       const SizedBox(height: 10),
                       _defaultRow(OperationType.engrave, _engravePower,
-                          _engraveSpeedCtrl, (v) => setState(() => _engravePower = v)),
+                          _engraveSpeedCtrl, (v) => setState(() => _engravePower = v), cs),
                     ],
                   ),
                 ),
 
                 const SizedBox(height: 20),
-                // ── Connection ───────────────────────────────────────
-                _sectionHeader('CONNECTION'),
-                _baudRateRow(),
+                _sectionHeader('CONNECTION', cs),
+                _baudRateRow(cs),
               ],
             ),
           ),
@@ -164,14 +161,11 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(foregroundColor: Colors.grey[500]),
             child: const Text('Cancel'),
           ),
           FilledButton(
             onPressed:
                 _isValid ? () => Navigator.pop(context, _buildResult()) : null,
-            style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF1565C0)),
             child: const Text('Save'),
           ),
         ],
@@ -179,26 +173,24 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     );
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────
-
-  Widget _sectionHeader(String title) => Padding(
+  Widget _sectionHeader(String title, ColorScheme cs) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Text(
           title,
           style: TextStyle(
               fontSize: 10,
-              color: Colors.grey[500],
+              color: cs.onSurfaceVariant,
               letterSpacing: 1.2,
               fontWeight: FontWeight.w600),
         ),
       );
 
-  Widget _fieldLabel(String text) => Text(
+  Widget _fieldLabel(String text, ColorScheme cs) => Text(
         text,
-        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
       );
 
-  Widget _laserModeSelector() => Row(
+  Widget _laserModeSelector(ColorScheme cs) => Row(
         children: LaserMode.values.map((m) {
           final sel = m == _laserMode;
           return Expanded(
@@ -209,10 +201,10 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                 padding: const EdgeInsets.symmetric(vertical: 7),
                 decoration: BoxDecoration(
                   color: sel
-                      ? const Color(0xFF1565C0).withValues(alpha: 0.25)
-                      : Colors.grey[800],
+                      ? cs.primary.withValues(alpha: 0.25)
+                      : cs.surfaceContainerHighest,
                   border: Border.all(
-                    color: sel ? const Color(0xFF1565C0) : Colors.grey[700]!,
+                    color: sel ? cs.primary : cs.outlineVariant,
                     width: sel ? 1.5 : 1,
                   ),
                   borderRadius: BorderRadius.circular(4),
@@ -222,7 +214,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 11,
-                    color: sel ? Colors.white : Colors.grey[400],
+                    color: sel ? cs.onPrimaryContainer : cs.onSurfaceVariant,
                     fontWeight: sel ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
@@ -233,7 +225,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
       );
 
   Widget _defaultRow(OperationType type, double power,
-      TextEditingController speedCtrl, ValueChanged<double> onPowerChanged) {
+      TextEditingController speedCtrl, ValueChanged<double> onPowerChanged,
+      ColorScheme cs) {
     final color = type.color;
     final valid = _parseSpeed(speedCtrl) != null;
     return Column(
@@ -253,7 +246,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
         Row(
           children: [
             Text('Power',
-                style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
             const SizedBox(width: 6),
             SizedBox(
               width: 90,
@@ -263,7 +256,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                   activeTrackColor: color,
                   thumbColor: color,
                   overlayColor: color.withValues(alpha: 0.15),
-                  inactiveTrackColor: Colors.grey[700],
+                  inactiveTrackColor: cs.surfaceContainerHighest,
                   trackHeight: 2,
                   thumbShape:
                       const RoundSliderThumbShape(enabledThumbRadius: 5),
@@ -291,7 +284,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
             ),
             const SizedBox(width: 8),
             Text('Speed',
-                style: TextStyle(color: Colors.grey[400], fontSize: 11)),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
             const SizedBox(width: 4),
             _stepBtn(Icons.remove, color, () {
               final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
@@ -304,7 +297,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
               child: TextField(
                 controller: speedCtrl,
                 style: TextStyle(
-                    color: valid ? Colors.white70 : Colors.red[300],
+                    color: valid ? cs.onSurface : cs.error,
                     fontSize: 12,
                     fontWeight: FontWeight.w600),
                 textAlign: TextAlign.center,
@@ -313,21 +306,21 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                   contentPadding: const EdgeInsets.symmetric(
                       horizontal: 4, vertical: 5),
                   filled: true,
-                  fillColor: Colors.grey[800],
+                  fillColor: cs.surfaceContainerHighest,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(4),
                     borderSide: BorderSide(
-                        color: valid ? Colors.grey[600]! : Colors.red),
+                        color: valid ? cs.outline : cs.error),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(4),
                     borderSide: BorderSide(
-                        color: valid ? Colors.grey[600]! : Colors.red),
+                        color: valid ? cs.outline : cs.error),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(4),
                     borderSide: BorderSide(
-                        color: valid ? const Color(0xFF1565C0) : Colors.red),
+                        color: valid ? cs.primary : cs.error),
                   ),
                 ),
                 keyboardType: TextInputType.number,
@@ -345,61 +338,61 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     );
   }
 
-  Widget _sMaxRow() => Row(
+  Widget _sMaxRow(ColorScheme cs) => Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _fieldLabel('Max laser power (S max)'),
+                _fieldLabel('Max laser power (S max)', cs),
                 const SizedBox(height: 2),
                 Text(
                   'Must match parameter \$30 in GRBL controller',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          _numericField(_sMaxCtrl, width: 70, decimal: false),
+          _numericField(_sMaxCtrl, width: 70, decimal: false, cs: cs),
         ],
       );
 
-  Widget _spotSizeRow() => Row(
+  Widget _spotSizeRow(ColorScheme cs) => Row(
         children: [
-          _fieldLabel('Laser spot size'),
+          _fieldLabel('Laser spot size', cs),
           const Spacer(),
-          _numericField(_spotCtrl, width: 64, decimal: true),
+          _numericField(_spotCtrl, width: 64, decimal: true, cs: cs),
           const SizedBox(width: 6),
-          Text('mm', style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+          Text('mm', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         ],
       );
 
   Widget _numericField(TextEditingController ctrl,
-          {required double width, required bool decimal}) =>
+          {required double width, required bool decimal, required ColorScheme cs}) =>
       SizedBox(
         width: width,
         child: TextField(
           controller: ctrl,
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
+          style: TextStyle(color: cs.onSurface, fontSize: 13),
           textAlign: TextAlign.center,
           decoration: InputDecoration(
             isDense: true,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
             filled: true,
-            fillColor: Colors.grey[800],
+            fillColor: cs.surfaceContainerHighest,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: BorderSide(color: Colors.grey[600]!),
+              borderSide: BorderSide(color: cs.outline),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: BorderSide(color: Colors.grey[600]!),
+              borderSide: BorderSide(color: cs.outline),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(4),
-              borderSide: const BorderSide(color: Color(0xFF1565C0)),
+              borderSide: BorderSide(color: cs.primary),
             ),
           ),
           keyboardType: decimal
@@ -422,14 +415,14 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
         ),
       );
 
-  Widget _baudRateRow() => Row(
+  Widget _baudRateRow(ColorScheme cs) => Row(
         children: [
-          _fieldLabel('Default baud rate'),
+          _fieldLabel('Default baud rate', cs),
           const Spacer(),
           DropdownButton<int>(
             value: _baudRate,
-            dropdownColor: Colors.grey[850],
-            style: const TextStyle(color: Colors.white70, fontSize: 13),
+            dropdownColor: cs.surfaceContainerHigh,
+            style: TextStyle(color: cs.onSurface, fontSize: 13),
             underline: const SizedBox(),
             items: _kBaudRates
                 .map((b) => DropdownMenuItem(value: b, child: Text('$b')))

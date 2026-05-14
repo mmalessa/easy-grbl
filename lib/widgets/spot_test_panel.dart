@@ -17,29 +17,30 @@ class SpotTestPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _header(),
-        const Divider(height: 1),
+        _header(cs),
+        Divider(height: 1, color: cs.outlineVariant),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _label('Power'),
+                _label('Power', cs),
                 const SizedBox(height: 4),
-                _powerSlider(),
+                _powerSlider(cs),
                 const SizedBox(height: 12),
-                _label('Speed (mm/min)'),
+                _label('Speed (mm/min)', cs),
                 const SizedBox(height: 4),
-                _speedStepper(),
+                _speedStepper(cs),
                 const SizedBox(height: 16),
-                _infoRow('Square', '9 × 9 mm'),
-                _infoRow('Laser spot', '${spotSize.toStringAsFixed(2)} mm'),
+                _infoRow('Square', '9 × 9 mm', cs),
+                _infoRow('Laser spot', '${spotSize.toStringAsFixed(2)} mm', cs),
                 const SizedBox(height: 8),
-                _legend(),
+                _legend(cs),
               ],
             ),
           ),
@@ -48,16 +49,16 @@ class SpotTestPanel extends StatelessWidget {
     );
   }
 
-  Widget _header() {
+  Widget _header(ColorScheme cs) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
       child: Row(
         children: [
-          const Icon(Icons.grid_on, size: 14, color: Color(0xFF89B4FA)),
+          Icon(Icons.grid_on, size: 14, color: cs.primary),
           const SizedBox(width: 6),
-          const Text(
+          Text(
             'Spot Size Test',
-            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12, color: cs.onSurface),
           ),
           const Spacer(),
           IconButton(
@@ -66,38 +67,41 @@ class SpotTestPanel extends StatelessWidget {
             visualDensity: VisualDensity.compact,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            color: Colors.grey[600],
+            color: cs.onSurfaceVariant,
           ),
         ],
       ),
     );
   }
 
-  Widget _label(String text) {
+  Widget _label(String text, ColorScheme cs) {
     return Text(
       text,
       style: TextStyle(
-          fontSize: 10, color: Colors.grey[600], letterSpacing: 0.5),
+          fontSize: 10, color: cs.onSurfaceVariant, letterSpacing: 0.5),
     );
   }
 
-  Widget _infoRow(String label, String value) {
+  Widget _infoRow(String label, String value, ColorScheme cs) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          _label(label),
+          _label(label, cs),
           const Spacer(),
           Text(
             value,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface),
           ),
         ],
       ),
     );
   }
 
-  Widget _legend() {
+  Widget _legend(ColorScheme cs) {
     final bands = [
       ('Top', 'spot size + 0.1 mm', Colors.red.shade300),
       ('Middle', 'spot size (exact)', Colors.green.shade400),
@@ -120,7 +124,7 @@ class SpotTestPanel extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 '${b.$1} — ${b.$2}',
-                style: TextStyle(fontSize: 10, color: Colors.grey[700]),
+                style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant),
               ),
             ],
           ),
@@ -129,8 +133,8 @@ class SpotTestPanel extends StatelessWidget {
     );
   }
 
-  Widget _powerSlider() {
-    final color = Colors.orange.shade400;
+  Widget _powerSlider(ColorScheme cs) {
+    final color = cs.primary;
     final pct = config.powerPercent;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,7 +156,7 @@ class SpotTestPanel extends StatelessWidget {
             activeTrackColor: color,
             thumbColor: color,
             overlayColor: color.withValues(alpha: 0.15),
-            inactiveTrackColor: Colors.grey[300],
+            inactiveTrackColor: cs.surfaceContainerHighest,
             trackHeight: 2,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
             overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
@@ -170,36 +174,39 @@ class SpotTestPanel extends StatelessWidget {
     );
   }
 
-  Widget _speedStepper() {
+  Widget _speedStepper(ColorScheme cs) {
     return Row(
       children: [
         _speedBtn(Icons.remove, () {
           final v = (config.speedMmMin - 100).clamp(100, 30000);
           onChanged(config.copyWith(speedMmMin: v));
-        }),
+        }, cs),
         Expanded(
           child: Text(
             '${config.speedMmMin}',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurface),
           ),
         ),
         _speedBtn(Icons.add, () {
           final v = (config.speedMmMin + 100).clamp(100, 30000);
           onChanged(config.copyWith(speedMmMin: v));
-        }),
+        }, cs),
       ],
     );
   }
 
-  Widget _speedBtn(IconData icon, VoidCallback? onTap) {
+  Widget _speedBtn(IconData icon, VoidCallback? onTap, ColorScheme cs) {
     return SizedBox(
       width: 32,
       height: 28,
       child: Material(
         color: onTap != null
-            ? Colors.orange.withValues(alpha: 0.12)
-            : Colors.grey[100],
+            ? cs.primary.withValues(alpha: 0.12)
+            : cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(4),
         child: InkWell(
           onTap: onTap,
@@ -207,7 +214,7 @@ class SpotTestPanel extends StatelessWidget {
           child: Icon(
             icon,
             size: 14,
-            color: onTap != null ? Colors.orange : Colors.grey[400],
+            color: onTap != null ? cs.primary : cs.onSurfaceVariant,
           ),
         ),
       ),

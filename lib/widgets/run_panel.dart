@@ -21,11 +21,12 @@ class RunPanel extends StatelessWidget {
     return ListenableBuilder(
       listenable: service,
       builder: (context, _) {
+        final cs = Theme.of(context).colorScheme;
         if (document == null) {
-          return _hint('Load an SVG file to run a job.');
+          return _hint('Load an SVG file to run a job.', cs);
         }
-        if (service.isJobRunning) return _running(context);
-        return _idle(context);
+        if (service.isJobRunning) return _running(context, cs);
+        return _idle(context, cs);
       },
     );
   }
@@ -36,9 +37,11 @@ class RunPanel extends StatelessWidget {
     required VoidCallback onTap,
     String? tooltip,
     bool enabled = true,
+    ColorScheme? cs,
   }) {
+    final scheme = cs ?? (throw StateError('_iconBtn requires cs'));
     final widget = Material(
-      color: enabled ? Colors.grey[200] : Colors.grey[100],
+      color: enabled ? scheme.surfaceContainerLow : scheme.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(5),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -47,7 +50,7 @@ class RunPanel extends StatelessWidget {
           width: 38,
           height: 40,
           child: Icon(icon,
-              size: 18, color: enabled ? color : Colors.grey[400]),
+              size: 18, color: enabled ? color : scheme.onSurfaceVariant),
         ),
       ),
     );
@@ -56,13 +59,13 @@ class RunPanel extends StatelessWidget {
         : widget;
   }
 
-  Widget _hint(String text) => Padding(
+  Widget _hint(String text, ColorScheme cs) => Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
         child: Text(text,
-            style: const TextStyle(color: Colors.grey, fontSize: 11)),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
       );
 
-  Widget _idle(BuildContext context) {
+  Widget _idle(BuildContext context, ColorScheme cs) {
     final roots = document!.roots;
     final (:paths, :passes) = service.countJobSteps(roots);
     final canRun = paths > 0 && service.isIdle;
@@ -79,14 +82,14 @@ class RunPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.layers_outlined, size: 12, color: Colors.grey[500]),
+              Icon(Icons.layers_outlined, size: 12, color: cs.onSurfaceVariant),
               const SizedBox(width: 5),
               Flexible(
                 child: Text(
                   paths > 0
                       ? '$paths path${paths == 1 ? '' : 's'}  •  $passes pass${passes == 1 ? '' : 'es'}  •  $estLabel'
                       : 'No active paths — set operation types on layers',
-                  style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                  style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -102,23 +105,16 @@ class RunPanel extends StatelessWidget {
                       : null,
                   icon: const Icon(Icons.play_arrow, size: 16),
                   label: const Text('Start Job'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF388E3C),
-                    disabledBackgroundColor: Colors.grey[200],
-                    disabledForegroundColor: Colors.grey[500],
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    textStyle: const TextStyle(
-                        fontSize: 12, fontWeight: FontWeight.w600),
-                  ),
                 ),
               ),
               if (onExportGcode != null) ...[
                 const SizedBox(width: 6),
                 _iconBtn(
                   icon: Icons.code,
-                  color: const Color(0xFF1565C0),
+                  color: cs.primary,
                   tooltip: 'Export G-code',
                   onTap: onExportGcode!,
+                  cs: cs,
                 ),
               ],
             ],
@@ -128,7 +124,7 @@ class RunPanel extends StatelessWidget {
     );
   }
 
-  Widget _running(BuildContext context) {
+  Widget _running(BuildContext context, ColorScheme cs) {
     final progress = service.jobProgress;
     final pct = (progress * 100).round();
 
@@ -145,9 +141,9 @@ class RunPanel extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: progress,
                     minHeight: 6,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFFFF9800)),
+                    backgroundColor: cs.surfaceContainerLow,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        cs.primary),
                   ),
                 ),
               ),
@@ -159,7 +155,7 @@ class RunPanel extends StatelessWidget {
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: Colors.grey[700]),
+                      color: cs.onSurfaceVariant),
                   textAlign: TextAlign.right,
                 ),
               ),
@@ -171,7 +167,7 @@ class RunPanel extends StatelessWidget {
             icon: const Icon(Icons.stop, size: 16),
             label: const Text('STOP'),
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: cs.error,
               padding: const EdgeInsets.symmetric(vertical: 10),
               textStyle:
                   const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),

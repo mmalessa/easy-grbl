@@ -62,8 +62,8 @@ class _GcodeDialogState extends State<_GcodeDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Dialog(
-      backgroundColor: const Color(0xFF1E1E1E),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ConstrainedBox(
         constraints: const BoxConstraints(
@@ -72,33 +72,31 @@ class _GcodeDialogState extends State<_GcodeDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Title bar
             _TitleBar(
               filename: _suggestedName,
               lines: _lineCount,
               size: _sizeLabel,
               onClose: () => Navigator.of(context).pop(),
+              cs: cs,
             ),
-            const Divider(height: 1, color: Color(0xFF333333)),
+            Divider(height: 1, color: cs.outlineVariant),
 
-            // Code area
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(12),
                 child: SelectableText(
                   widget.gcode,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontFamily: 'monospace',
                     fontSize: 11.5,
-                    color: Color(0xFFCDD6F4),
+                    color: cs.onSurface,
                     height: 1.5,
                   ),
                 ),
               ),
             ),
 
-            const Divider(height: 1, color: Color(0xFF333333)),
-            // Action bar
+            Divider(height: 1, color: cs.outlineVariant),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
               child: Row(
@@ -109,19 +107,18 @@ class _GcodeDialogState extends State<_GcodeDialog> {
                     label: _copied ? 'Copied!' : 'Copy',
                     onTap: _copy,
                     accent: _copied,
+                    cs: cs,
                   ),
                   const SizedBox(width: 8),
                   _ActionBtn(
                     icon: Icons.save_alt_outlined,
                     label: 'Save as…',
                     onTap: _save,
+                    cs: cs,
                   ),
                   const SizedBox(width: 8),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.grey[400],
-                    ),
                     child: const Text('Close'),
                   ),
                 ],
@@ -134,19 +131,19 @@ class _GcodeDialogState extends State<_GcodeDialog> {
   }
 }
 
-// ---------------------------------------------------------------------------
-
 class _TitleBar extends StatelessWidget {
   final String filename;
   final int lines;
   final String size;
   final VoidCallback onClose;
+  final ColorScheme cs;
 
   const _TitleBar({
     required this.filename,
     required this.lines,
     required this.size,
     required this.onClose,
+    required this.cs,
   });
 
   @override
@@ -155,12 +152,12 @@ class _TitleBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
       child: Row(
         children: [
-          const Icon(Icons.code, size: 16, color: Color(0xFF89B4FA)),
+          Icon(Icons.code, size: 16, color: cs.primary),
           const SizedBox(width: 8),
           Text(
             filename,
-            style: const TextStyle(
-              color: Color(0xFFCDD6F4),
+            style: TextStyle(
+              color: cs.onSurface,
               fontWeight: FontWeight.w600,
               fontSize: 13,
             ),
@@ -168,12 +165,12 @@ class _TitleBar extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             '$lines lines  •  $size',
-            style: const TextStyle(color: Color(0xFF6C7086), fontSize: 11),
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
           ),
           const Spacer(),
           IconButton(
             icon: const Icon(Icons.close, size: 16),
-            color: Colors.grey[600],
+            color: cs.onSurfaceVariant,
             onPressed: onClose,
             visualDensity: VisualDensity.compact,
             tooltip: 'Close',
@@ -189,19 +186,19 @@ class _ActionBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool accent;
+  final ColorScheme cs;
 
   const _ActionBtn({
     required this.icon,
     required this.label,
     required this.onTap,
     this.accent = false,
+    required this.cs,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = accent
-        ? const Color(0xFFA6E3A1)
-        : const Color(0xFF89B4FA);
+    final color = accent ? Colors.green : cs.primary;
     return TextButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 14, color: color),

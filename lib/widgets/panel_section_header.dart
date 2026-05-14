@@ -14,17 +14,21 @@ class PanelSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      color: Colors.grey[200],
+      color: cs.surfaceContainerLow,
       child: Row(children: [
-        Icon(icon, size: 13, color: Colors.grey[700]),
+        Icon(icon, size: 13, color: cs.onSurfaceVariant),
         const SizedBox(width: 6),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurfaceVariant),
           ),
         ),
         if (trailing != null) trailing!,

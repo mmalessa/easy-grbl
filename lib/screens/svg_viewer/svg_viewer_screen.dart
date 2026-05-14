@@ -45,6 +45,7 @@ class _SvgViewerScreenState extends State<SvgViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(title: const Text('SVG Viewer')),
       body: Row(
@@ -52,7 +53,7 @@ class _SvgViewerScreenState extends State<SvgViewerScreen> {
           Expanded(
             flex: 3,
             child: Container(
-              color: Colors.grey[100],
+              color: cs.surfaceContainerHighest,
               child: CustomPaint(
                 painter: SvgDocumentPainter(document: document),
                 child: const SizedBox.expand(),
@@ -74,8 +75,6 @@ class _SvgViewerScreenState extends State<SvgViewerScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-
 class _LayersPanel extends StatelessWidget {
   final List<SvgNode> roots;
   final void Function(SvgNode) onToggleEnabled;
@@ -89,25 +88,26 @@ class _LayersPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          color: Colors.grey[200],
+          color: cs.surfaceContainerLow,
           child: Row(children: [
-            const Icon(Icons.layers_outlined, size: 15),
+            Icon(Icons.layers_outlined, size: 15, color: cs.onSurfaceVariant),
             const SizedBox(width: 6),
             Text('Layers & Objects',
                 style: Theme.of(context).textTheme.labelMedium),
           ]),
         ),
-        const Divider(height: 1, thickness: 1),
+        Divider(height: 1, thickness: 1, color: cs.outlineVariant),
         Expanded(
           child: roots.isEmpty
-              ? const Center(
-                  child: Text('No elements', style: TextStyle(color: Colors.grey)),
+              ? Center(
+                  child: Text('No elements', style: TextStyle(color: cs.onSurfaceVariant)),
                 )
               : ListView(
                   children: roots
@@ -124,8 +124,6 @@ class _LayersPanel extends StatelessWidget {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
 
 class _NodeTile extends StatefulWidget {
   final SvgNode node;
@@ -149,6 +147,7 @@ class _NodeTileState extends State<_NodeTile> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final node = widget.node;
     final indent = widget.depth * 14.0;
 
@@ -158,12 +157,11 @@ class _NodeTileState extends State<_NodeTile> {
         InkWell(
           onTap: () => widget.onSelect(node),
           child: Container(
-            color: node.selected ? Colors.blue.withValues(alpha: 0.18) : null,
+            color: node.selected ? cs.primary.withValues(alpha: 0.18) : null,
             padding: EdgeInsets.only(
                 left: 4 + indent, right: 4, top: 2, bottom: 2),
             child: Row(
               children: [
-                // Expand arrow (groups/layers only)
                 SizedBox(
                   width: 18,
                   child: node.children.isNotEmpty
@@ -180,21 +178,18 @@ class _NodeTileState extends State<_NodeTile> {
                         )
                       : const SizedBox(),
                 ),
-                // Type icon
                 Icon(_icon(node.type), size: 14, color: _iconColor(node.type)),
                 const SizedBox(width: 5),
-                // Label
                 Expanded(
                   child: Text(
                     node.label,
                     style: TextStyle(
                       fontSize: 12,
-                      color: node.enabled ? null : Colors.grey[400],
+                      color: node.enabled ? null : cs.onSurfaceVariant,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                // Eye toggle
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onTap: () => widget.onToggleEnabled(node),
@@ -205,7 +200,7 @@ class _NodeTileState extends State<_NodeTile> {
                           ? Icons.visibility_outlined
                           : Icons.visibility_off_outlined,
                       size: 14,
-                      color: node.enabled ? Colors.grey[600] : Colors.grey[400],
+                      color: node.enabled ? cs.onSurfaceVariant : cs.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                   ),
                 ),

@@ -67,13 +67,14 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final color = _opType == OperationType.skip
         ? Colors.grey
         : _opType.color;
     final isFill = _opType == OperationType.fill;
 
     return Container(
-      color: Colors.white,
+      color: cs.surface,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -137,7 +138,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
               activeTrackColor: color,
               thumbColor: color,
               overlayColor: color.withValues(alpha: 0.15),
-              inactiveTrackColor: Colors.grey[300],
+              inactiveTrackColor: cs.surfaceContainerHighest,
               trackHeight: 2,
               thumbShape:
                   const RoundSliderThumbShape(enabledThumbRadius: 6),
@@ -196,7 +197,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
 
           // Fill-specific settings
           if (isFill) ...[
-            const Divider(height: 16, thickness: 1, color: Color(0xFFEEEEEE)),
+            Divider(height: 16, thickness: 1, color: cs.outlineVariant),
             _label('Direction'),
             const SizedBox(height: 4),
             _DirectionPicker(
@@ -213,10 +214,10 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
               const Spacer(),
               Text(
                 _linesPerMm == _autoLinesPerMm ? 'auto' : '',
-                style: TextStyle(
-                    fontSize: 9,
-                    color: Colors.grey[400],
-                    fontStyle: FontStyle.italic),
+              style: TextStyle(
+                  fontSize: 9,
+                  color: cs.onSurfaceVariant,
+                  fontStyle: FontStyle.italic),
               ),
             ]),
             const SizedBox(height: 4),
@@ -242,7 +243,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
   Widget _label(String text) => Text(
         text,
         style: TextStyle(
-            fontSize: 10, color: Colors.grey[600], letterSpacing: 0.5),
+            fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant, letterSpacing: 0.5),
       );
 
   IconData _nodeIcon(SvgNodeType t) => switch (t) {
@@ -262,10 +263,10 @@ class _OpTypePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     const ops = [OperationType.engrave, OperationType.cut, OperationType.fill];
     return Row(
       children: [
-        // Clear button — always single-state, sets operation to skip
         GestureDetector(
           onTap: () => onChanged(OperationType.skip),
           child: Container(
@@ -273,11 +274,11 @@ class _OpTypePicker extends StatelessWidget {
             margin: const EdgeInsets.only(right: 3),
             padding: const EdgeInsets.symmetric(vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.grey[100],
-              border: Border.all(color: Colors.grey[300]!, width: 1),
+              color: cs.surfaceContainerLowest,
+              border: Border.all(color: cs.outlineVariant, width: 1),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Icon(Icons.close, size: 10, color: Colors.grey[500]),
+            child: Icon(Icons.close, size: 10, color: cs.onSurfaceVariant),
           ),
         ),
         ...ops.map((t) => Expanded(
@@ -289,9 +290,9 @@ class _OpTypePicker extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: t == value
                         ? t.color.withValues(alpha: 0.15)
-                        : Colors.grey[100],
+                        : cs.surfaceContainerLowest,
                     border: Border.all(
-                      color: t == value ? t.color : Colors.grey[300]!,
+                      color: t == value ? t.color : cs.outlineVariant,
                       width: t == value ? 1.5 : 1,
                     ),
                     borderRadius: BorderRadius.circular(4),
@@ -303,7 +304,7 @@ class _OpTypePicker extends StatelessWidget {
                       fontSize: 10,
                       fontWeight:
                           t == value ? FontWeight.w700 : FontWeight.normal,
-                      color: t == value ? t.color : Colors.grey[600],
+                      color: t == value ? t.color : cs.onSurfaceVariant,
                     ),
                   ),
                 ),
@@ -329,6 +330,7 @@ class _DirectionPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: FillDirection.values.map((d) {
         final sel = d == value;
@@ -343,9 +345,9 @@ class _DirectionPicker extends StatelessWidget {
               margin: const EdgeInsets.only(right: 3),
               padding: const EdgeInsets.symmetric(vertical: 5),
               decoration: BoxDecoration(
-                color: sel ? color.withValues(alpha: 0.15) : Colors.grey[100],
+                color: sel ? color.withValues(alpha: 0.15) : cs.surfaceContainerLowest,
                 border: Border.all(
-                  color: sel ? color : Colors.grey[300]!,
+                  color: sel ? color : cs.outlineVariant,
                   width: sel ? 1.5 : 1,
                 ),
                 borderRadius: BorderRadius.circular(4),
@@ -355,7 +357,7 @@ class _DirectionPicker extends StatelessWidget {
                 children: [
                   Icon(icon,
                       size: 12,
-                      color: sel ? color : Colors.grey[500]),
+                      color: sel ? color : cs.onSurfaceVariant),
                   const SizedBox(width: 4),
                   Text(
                     label,
@@ -363,7 +365,7 @@ class _DirectionPicker extends StatelessWidget {
                       fontSize: 10,
                       fontWeight:
                           sel ? FontWeight.w700 : FontWeight.normal,
-                      color: sel ? color : Colors.grey[600],
+                      color: sel ? color : cs.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -397,10 +399,11 @@ class _LinesPerMmCounter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final step = _step(value);
     return Row(
       children: [
-        _btn(Icons.remove, value > 0.5 ? () => onChanged((value - step).clamp(0.5, 100.0)) : null),
+        _btn(Icons.remove, value > 0.5 ? () => onChanged((value - step).clamp(0.5, 100.0)) : null, cs),
         Expanded(
           child: Text(
             value == value.roundToDouble()
@@ -410,7 +413,7 @@ class _LinesPerMmCounter extends StatelessWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ),
-        _btn(Icons.add, value < 100 ? () => onChanged((value + step).clamp(0.5, 100.0)) : null),
+        _btn(Icons.add, value < 100 ? () => onChanged((value + step).clamp(0.5, 100.0)) : null, cs),
         const SizedBox(width: 6),
         SizedBox(
           width: 36,
@@ -420,7 +423,7 @@ class _LinesPerMmCounter extends StatelessWidget {
             child: Material(
               color: value == autoValue
                   ? color.withValues(alpha: 0.12)
-                  : Colors.grey[100],
+                  : cs.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(4),
               child: InkWell(
                 onTap: onReset,
@@ -428,7 +431,7 @@ class _LinesPerMmCounter extends StatelessWidget {
                 child: Icon(
                   Icons.autorenew,
                   size: 13,
-                  color: value == autoValue ? color : Colors.grey[400],
+                  color: value == autoValue ? color : cs.onSurfaceVariant,
                 ),
               ),
             ),
@@ -438,18 +441,18 @@ class _LinesPerMmCounter extends StatelessWidget {
     );
   }
 
-  Widget _btn(IconData icon, VoidCallback? onTap) => SizedBox(
+  Widget _btn(IconData icon, VoidCallback? onTap, ColorScheme cs) => SizedBox(
         width: 28,
         height: 26,
         child: Material(
-          color: onTap != null ? color.withValues(alpha: 0.12) : Colors.grey[100],
+          color: onTap != null ? color.withValues(alpha: 0.12) : cs.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(4),
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(4),
             child: Icon(icon,
                 size: 13,
-                color: onTap != null ? color : Colors.grey[400]),
+                color: onTap != null ? color : cs.onSurfaceVariant),
           ),
         ),
       );
@@ -476,10 +479,11 @@ class _Counter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         _btn(Icons.remove,
-            value > min ? () => onChanged((value - step).clamp(min, max)) : null),
+            value > min ? () => onChanged((value - step).clamp(min, max)) : null, cs),
         Expanded(
           child: Text(
             value.toString(),
@@ -488,25 +492,25 @@ class _Counter extends StatelessWidget {
           ),
         ),
         _btn(Icons.add,
-            value < max ? () => onChanged((value + step).clamp(min, max)) : null),
+            value < max ? () => onChanged((value + step).clamp(min, max)) : null, cs),
       ],
     );
   }
 
-  Widget _btn(IconData icon, VoidCallback? onTap) => SizedBox(
+  Widget _btn(IconData icon, VoidCallback? onTap, ColorScheme cs) => SizedBox(
         width: 28,
         height: 26,
         child: Material(
           color: onTap != null
               ? accentColor.withValues(alpha: 0.12)
-              : Colors.grey[100],
+              : cs.surfaceContainerLowest,
           borderRadius: BorderRadius.circular(4),
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(4),
             child: Icon(icon,
                 size: 13,
-                color: onTap != null ? accentColor : Colors.grey[400]),
+                color: onTap != null ? accentColor : cs.onSurfaceVariant),
           ),
         ),
       );

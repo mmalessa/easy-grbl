@@ -32,10 +32,11 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AppBar(
       toolbarHeight: 38,
-      backgroundColor: Colors.grey[900],
-      foregroundColor: Colors.white,
+      backgroundColor: cs.surfaceContainerHigh,
+      foregroundColor: cs.onSurface,
       titleSpacing: 0,
       title: MenuBar(
         style: MenuStyle(
@@ -43,9 +44,8 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
           elevation: WidgetStateProperty.all(0),
         ),
         children: [
-          // ── File ──────────────────────────────────────────────────
           SubmenuButton(
-            style: _menuButtonStyle(),
+            style: _menuButtonStyle(cs),
             menuChildren: [
               MenuItemButton(
                 onPressed: onOpenFile,
@@ -102,9 +102,8 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
             child: const Text('File'),
           ),
 
-          // ── Machine ───────────────────────────────────────────────
           SubmenuButton(
-            style: _menuButtonStyle(),
+            style: _menuButtonStyle(cs),
             menuChildren: [
               MenuItemButton(
                 onPressed: onToggleConnect,
@@ -128,9 +127,9 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  ButtonStyle _menuButtonStyle() => ButtonStyle(
-        foregroundColor: WidgetStateProperty.all(Colors.white70),
-        overlayColor: WidgetStateProperty.all(Colors.white12),
+  ButtonStyle _menuButtonStyle(ColorScheme cs) => ButtonStyle(
+        foregroundColor: WidgetStateProperty.all(cs.onSurface.withValues(alpha: 0.7)),
+        overlayColor: WidgetStateProperty.all(cs.onSurface.withValues(alpha: 0.12)),
       );
 
   @override

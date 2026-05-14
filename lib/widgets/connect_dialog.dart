@@ -68,22 +68,22 @@ class _ConnectDialogState extends State<_ConnectDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return AlertDialog(
-      backgroundColor: Colors.grey[900],
       title: Row(children: [
-        const Icon(Icons.usb, size: 18, color: Colors.white70),
+        Icon(Icons.usb, size: 18, color: cs.onSurface.withValues(alpha: 0.7)),
         const SizedBox(width: 8),
-        const Text('Connect to Machine',
-            style: TextStyle(color: Colors.white, fontSize: 15)),
+        Text('Connect to Machine',
+            style: TextStyle(color: cs.onSurface, fontSize: 15)),
         const Spacer(),
         IconButton(
           icon: _scanning
-              ? const SizedBox(
+              ? SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(
-                      strokeWidth: 1.5, color: Colors.white54))
-              : const Icon(Icons.refresh, size: 16, color: Colors.white54),
+                      strokeWidth: 1.5, color: cs.onSurface.withValues(alpha: 0.5)))
+              : Icon(Icons.refresh, size: 16, color: cs.onSurface.withValues(alpha: 0.5)),
           onPressed: _scanning ? null : _scan,
           tooltip: 'Scan ports',
           visualDensity: VisualDensity.compact,
@@ -95,18 +95,18 @@ class _ConnectDialogState extends State<_ConnectDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Serial port row
             _Row(
               label: 'Port',
+              cs: cs,
               child: _serialUnavailable
-                  ? _hint('libserialport not installed')
+                  ? _hint('libserialport not installed', cs)
                   : _ports.isEmpty
-                      ? _hint('No ports found — plug in device and scan ↺')
+                      ? _hint('No ports found — plug in device and scan ↺', cs)
                       : DropdownButton<String>(
                           value: _selectedPort,
-                          dropdownColor: Colors.grey[850],
-                          style: const TextStyle(
-                              color: Colors.white70, fontSize: 13),
+                          dropdownColor: cs.surfaceContainerHigh,
+                          style: TextStyle(
+                              color: cs.onSurface, fontSize: 13),
                           underline: const SizedBox(),
                           isExpanded: true,
                           items: _ports
@@ -120,14 +120,14 @@ class _ConnectDialogState extends State<_ConnectDialog> {
                         ),
             ),
             const SizedBox(height: 10),
-            // Baud rate row
             _Row(
               label: 'Baud rate',
+              cs: cs,
               child: DropdownButton<int>(
                 value: _baud,
-                dropdownColor: Colors.grey[850],
+                dropdownColor: cs.surfaceContainerHigh,
                 style:
-                    const TextStyle(color: Colors.white70, fontSize: 13),
+                    TextStyle(color: cs.onSurface, fontSize: 13),
                 underline: const SizedBox(),
                 isExpanded: true,
                 items: _kBaudRates
@@ -141,11 +141,11 @@ class _ConnectDialogState extends State<_ConnectDialog> {
             ),
             if (!_serialUnavailable) ...[
               const SizedBox(height: 12),
-              const Divider(color: Colors.white12),
+              Divider(color: cs.outlineVariant),
               const SizedBox(height: 4),
               Text(
                 'Connect (mock) simulates GRBL without hardware.',
-                style: TextStyle(color: Colors.grey[600], fontSize: 10),
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
               ),
             ],
           ],
@@ -156,14 +156,11 @@ class _ConnectDialogState extends State<_ConnectDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          style: TextButton.styleFrom(foregroundColor: Colors.grey[500]),
           child: const Text('Cancel'),
         ),
         TextButton(
           onPressed: () =>
               Navigator.pop(context, const ConnectResult.mock()),
-          style:
-              TextButton.styleFrom(foregroundColor: Colors.grey[400]),
           child: const Text('Connect (mock)'),
         ),
         FilledButton.icon(
@@ -175,25 +172,22 @@ class _ConnectDialogState extends State<_ConnectDialog> {
                   ),
           icon: const Icon(Icons.usb, size: 14),
           label: const Text('Connect'),
-          style: FilledButton.styleFrom(
-            backgroundColor: const Color(0xFF1565C0),
-            disabledBackgroundColor: Colors.grey[800],
-          ),
         ),
       ],
     );
   }
 
-  Widget _hint(String text) => Text(
+  Widget _hint(String text, ColorScheme cs) => Text(
         text,
-        style: TextStyle(color: Colors.grey[600], fontSize: 11),
+        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11),
       );
 }
 
 class _Row extends StatelessWidget {
   final String label;
   final Widget child;
-  const _Row({required this.label, required this.child});
+  final ColorScheme cs;
+  const _Row({required this.label, required this.child, required this.cs});
 
   @override
   Widget build(BuildContext context) {
@@ -202,7 +196,7 @@ class _Row extends StatelessWidget {
         SizedBox(
           width: 70,
           child: Text(label,
-              style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         ),
         Expanded(child: child),
       ],
