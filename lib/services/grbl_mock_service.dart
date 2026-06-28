@@ -27,6 +27,9 @@ class GrblMockService extends GrblService {
 
   // ── Connection ───────────────────────────────────────────────────
 
+  @override
+  bool get isMock => true;
+
   void connect() {
     if (connected) return;
     SchedulerBinding.instance.addPostFrameCallback((_) {

@@ -62,6 +62,7 @@ abstract class GrblService extends ChangeNotifier {
   // ── Concrete getters ─────────────────────────────────────────────
   bool get isIdle => connected && status == MachineStatus.idle;
   bool get isJobRunning => status == MachineStatus.run;
+  bool get isMock => false;
   bool get isJobPaused;
 
   // ── Concrete helpers (shared by all implementations) ─────────────

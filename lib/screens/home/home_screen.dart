@@ -114,8 +114,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _openConnectDialog() async {
-    // Serial connection: clicking the button toggles disconnect.
-    if (_grbl is GrblSerialService && _grbl.connected) {
+    // If already connected (serial or mock), disconnect.
+    if (_grbl.connected) {
       _grbl.disconnect();
       return;
     }
@@ -552,6 +552,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                     ? _spotTestDocument
                                     : _document,
                         service: _grbl,
+                        onToggleConnect: _openConnectDialog,
                         onStartJob: _showFocusTest
                             ? _startFocusTestJob
                             : _showKerfTest
