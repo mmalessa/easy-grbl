@@ -67,7 +67,7 @@ class SvgDocumentPainter extends CustomPainter {
       ..strokeWidth = 0.5 / scale;
 
     for (final node in document.roots) {
-      _paintNode(canvas, node, paint, true, null);
+      _paintNode(canvas, node, paint, true, null, false);
     }
 
     // Toolpath overlay (actual tool movement preview)
@@ -233,8 +233,10 @@ class SvgDocumentPainter extends CustomPainter {
     Paint paint,
     bool parentEnabled,
     OperationType? inheritedOp,
+    bool inSelectedScope,
   ) {
     final visible = parentEnabled && node.enabled;
+    final selected = inSelectedScope || node.selected;
 
     // Resolve effective operation type (own overrides inherited)
     final ownOp = node.settings.operationType;
@@ -263,7 +265,7 @@ class SvgDocumentPainter extends CustomPainter {
         }
         canvas.drawPath(path, paint);
 
-        if (node.selected && visible && effectiveOp != null) {
+        if (selected && visible) {
           canvas.drawPath(
             path,
             Paint()
@@ -276,7 +278,7 @@ class SvgDocumentPainter extends CustomPainter {
     }
 
     for (final child in node.children) {
-      _paintNode(canvas, child, paint, visible, effectiveOp);
+      _paintNode(canvas, child, paint, visible, effectiveOp, selected);
     }
 
     if (node.transform != null && node.transform!.isNotEmpty) canvas.restore();
