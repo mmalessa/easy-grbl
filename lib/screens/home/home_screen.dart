@@ -195,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _document = doc;
       _filename = filename;
       _selectedNode = null;
-      _toolpath = computeToolpath(doc);
+      _toolpath = computeToolpath(doc, _machineSettings);
     });
   }
 
@@ -403,7 +403,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _toggleEnabled(SvgNode node) {
     setState(() {
       node.enabled = !node.enabled;
-      if (_document != null) _toolpath = computeToolpath(_document!);
+      if (_document != null) _toolpath = computeToolpath(_document!, _machineSettings);
     });
   }
 
@@ -422,7 +422,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onSettingsChanged(SvgNode node, LayerSettings settings) {
     setState(() {
       node.settings = settings;
-      if (_document != null) _toolpath = computeToolpath(_document!);
+      if (_document != null) _toolpath = computeToolpath(_document!, _machineSettings);
     });
   }
 

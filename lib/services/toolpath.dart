@@ -4,6 +4,7 @@ import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
 import '../models/layer_settings.dart';
+import '../models/machine_settings.dart';
 import 'affine.dart';
 import 'gcode_generator.dart';
 
@@ -22,7 +23,8 @@ class ToolpathData {
 
 /// Computes a [ToolpathData] for [doc] in SVG coordinate space (no Y-flip).
 /// Returns null when there are no active paths.
-ToolpathData? computeToolpath(SvgDocument doc) {
+ToolpathData? computeToolpath(SvgDocument doc,
+    [MachineSettings machineSettings = const MachineSettings()]) {
   final vb = doc.viewBox;
   final rapidPath = Path();
   final feedMap = <Color, Path>{};
@@ -45,7 +47,8 @@ ToolpathData? computeToolpath(SvgDocument doc) {
     lastPos = svgPts.last;
   }
 
-  _walkNodes(doc.roots, SvgAffine.identity, true, null, null, addContour);
+  _walkNodes(doc.roots, SvgAffine.identity, true, null, null, machineSettings,
+      addContour);
 
   if (!hasAny) return null;
 
@@ -64,6 +67,7 @@ void _walkNodes(
   bool parentEnabled,
   OperationType? inheritedOp,
   LayerSettings? inheritedSettings,
+  MachineSettings machineSettings,
   void Function(List<Offset>, Color) addContour,
 ) {
   for (final node in nodes) {
@@ -75,7 +79,7 @@ void _walkNodes(
         ownOp != OperationType.skip ? node.settings : (inheritedSettings ?? node.settings);
     if (node.pathData != null && eff != null && eff != OperationType.skip) {
       if (eff == OperationType.fill) {
-        _sampleFill(node.pathData!, m, effSettings, addContour);
+        _sampleFill(node.pathData!, m, effSettings, machineSettings.laserSpotSize, addContour);
       } else {
         for (var pass = 0; pass < effSettings.passes; pass++) {
           _samplePath(node.pathData!, m, eff.color, addContour);
@@ -84,7 +88,7 @@ void _walkNodes(
     }
     _walkNodes(node.children, m, node.enabled, eff,
         ownOp != OperationType.skip ? node.settings : inheritedSettings,
-        addContour);
+        machineSettings, addContour);
   }
 }
 
@@ -123,6 +127,7 @@ void _sampleFill(
   String pathData,
   SvgAffine xform,
   LayerSettings settings,
+  double spotSize,
   void Function(List<Offset>, Color) addContour,
 ) {
   final Path rawPath;
@@ -133,11 +138,16 @@ void _sampleFill(
   }
   final path = rawPath.transform(xform.toFloat64());
   final color = OperationType.fill.color;
+  final inset = settings.fillOutline ? spotSize / 2 : 0.0;
 
   final lines = GcodeGenerator.computeFillLines(
-      path, settings.fillDirection, settings.linesPerMm);
+      path, settings.fillDirection, settings.linesPerMm, inset: inset);
 
   for (final line in lines) {
     addContour([line.$1, line.$2], color);
+  }
+
+  if (settings.fillOutline) {
+    _samplePath(pathData, xform, color, addContour);
   }
 }

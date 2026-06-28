@@ -9,6 +9,7 @@ class LayerSettings {
   int passes;
   FillDirection fillDirection;
   double linesPerMm;
+  bool fillOutline;
 
   LayerSettings({
     this.operationType = OperationType.skip,
@@ -17,6 +18,7 @@ class LayerSettings {
     this.passes = 1,
     this.fillDirection = FillDirection.horizontal,
     this.linesPerMm = 10.0,
+    this.fillOutline = true,
   });
 
   LayerSettings copyWith({
@@ -26,6 +28,7 @@ class LayerSettings {
     int? passes,
     FillDirection? fillDirection,
     double? linesPerMm,
+    bool? fillOutline,
   }) =>
       LayerSettings(
         operationType: operationType ?? this.operationType,
@@ -34,5 +37,6 @@ class LayerSettings {
         passes: passes ?? this.passes,
         fillDirection: fillDirection ?? this.fillDirection,
         linesPerMm: linesPerMm ?? this.linesPerMm,
+        fillOutline: fillOutline ?? this.fillOutline,
       );
 }

@@ -28,6 +28,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
   late int _passes;
   late FillDirection _fillDirection;
   late double _linesPerMm;
+  late bool _fillOutline;
 
   @override
   void initState() {
@@ -49,6 +50,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
     _passes = s.passes;
     _fillDirection = s.fillDirection;
     _linesPerMm = s.linesPerMm;
+    _fillOutline = s.fillOutline;
   }
 
   void _emit() => widget.onChanged(LayerSettings(
@@ -58,6 +60,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
         passes: _passes,
         fillDirection: _fillDirection,
         linesPerMm: _linesPerMm,
+        fillOutline: _fillOutline,
       ));
 
   double get _autoLinesPerMm {
@@ -231,6 +234,16 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
               },
               onReset: () {
                 setState(() => _linesPerMm = _autoLinesPerMm);
+                _emit();
+              },
+            ),
+            const SizedBox(height: 8),
+            _OutlineCheckbox(
+              value: _fillOutline,
+              color: color,
+              spotSize: widget.machineSettings.laserSpotSize,
+              onChanged: (v) {
+                setState(() => _fillOutline = v);
                 _emit();
               },
             ),
@@ -514,4 +527,73 @@ class _Counter extends StatelessWidget {
           ),
         ),
       );
+}
+
+// ---------------------------------------------------------------------------
+
+class _OutlineCheckbox extends StatelessWidget {
+  final bool value;
+  final Color color;
+  final double spotSize;
+  final void Function(bool) onChanged;
+
+  const _OutlineCheckbox({
+    required this.value,
+    required this.color,
+    required this.spotSize,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final inset = spotSize / 2;
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(4),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: Checkbox(
+                value: value,
+                activeColor: color,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                onChanged: (v) => onChanged(v ?? false),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Obrys (outline)',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: value ? color : cs.onSurface,
+                      fontWeight: value ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                  if (value)
+                    Text(
+                      'fill cofnięty o ${inset.toStringAsFixed(3)} mm (½ plamki)',
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: cs.onSurfaceVariant,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

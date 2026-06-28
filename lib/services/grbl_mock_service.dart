@@ -235,6 +235,17 @@ class GrblMockService extends GrblService {
                 steps.add((label: label, x: pts[i].dx, y: pts[i].dy));
                 steps.add((label: label, x: pts[i + 1].dx, y: pts[i + 1].dy));
               }
+              // Outline pass after fill
+              if (effSettings.fillOutline) {
+                final outline = _samplePath(n.pathData!, m, doc.viewBox);
+                if (outline.isNotEmpty) {
+                  final outlineLabel = 'Fill outline: ${n.label}';
+                  steps.add((label: '', x: outline.first.dx, y: outline.first.dy));
+                  for (final pt in outline) {
+                    steps.add((label: outlineLabel, x: pt.dx, y: pt.dy));
+                  }
+                }
+              }
             } else {
               steps.add((label: '', x: pts.first.dx, y: pts.first.dy));
               for (final pt in pts) {
@@ -291,8 +302,9 @@ class GrblMockService extends GrblService {
     try {
       final rawPath = parseSvgPathData(pathData);
       final path = rawPath.transform(xform.toFloat64());
+      final inset = settings.fillOutline ? machineSettings.laserSpotSize / 2 : 0.0;
       var lines = GcodeGenerator.computeFillLines(
-          path, settings.fillDirection, settings.linesPerMm);
+          path, settings.fillDirection, settings.linesPerMm, inset: inset);
       if (lines.isEmpty) return [];
 
       const maxLines = 60;

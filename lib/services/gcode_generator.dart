@@ -69,14 +69,22 @@ class GcodeGenerator {
         final s = effectiveSettings;
 
         if (effectiveOp == OperationType.fill) {
+          final inset = s.fillOutline ? settings.laserSpotSize / 2 : 0.0;
           buf.writeln(
             '; --- ${node.label} [Fill]'
             '  power:${s.powerPercent}%  speed:${s.speedMmMin} mm/min'
             '  lines/mm:${s.linesPerMm.toStringAsFixed(1)}'
-            '  dir:${s.fillDirection.name} ---',
+            '  dir:${s.fillDirection.name}'
+            '${s.fillOutline ? '  outline:yes  inset:${inset.toStringAsFixed(3)}mm' : ''} ---',
           );
           _fillToGcode(node.pathData!, combined, vb, s.powerPercent,
-              s.speedMmMin, s.fillDirection, s.linesPerMm, settings, buf);
+              s.speedMmMin, s.fillDirection, s.linesPerMm, settings, buf,
+              inset: inset);
+          if (s.fillOutline) {
+            buf.writeln('; outline pass');
+            _pathToGcode(node.pathData!, combined, vb, s.powerPercent,
+                s.speedMmMin, settings, buf);
+          }
         } else {
           buf.writeln(
             '; --- ${node.label} [${effectiveOp.label}]'
@@ -166,8 +174,9 @@ class GcodeGenerator {
     FillDirection direction,
     double linesPerMm,
     MachineSettings settings,
-    StringBuffer buf,
-  ) {
+    StringBuffer buf, {
+    double inset = 0.0,
+  }) {
     final Path rawPath;
     try {
       rawPath = parseSvgPathData(pathData);
@@ -177,7 +186,7 @@ class GcodeGenerator {
 
     // Apply transform in SVG space, then compute fill lines
     final path = rawPath.transform(xform.toFloat64());
-    final lines = computeFillLines(path, direction, linesPerMm);
+    final lines = computeFillLines(path, direction, linesPerMm, inset: inset);
     if (lines.isEmpty) return;
 
     final sMax = settings.sMax;
@@ -204,11 +213,16 @@ class GcodeGenerator {
   /// Computes fill line segments in SVG space using scanline intersection.
   /// Returns pairs (start, end) in alternating directions (boustrophedon).
   /// Handles compound paths (e.g. shapes with holes) correctly via even-odd rule.
+  ///
+  /// [inset] shrinks each line segment by this amount on both ends and narrows
+  /// the scanline band accordingly — use spotSize/2 to avoid double-burning
+  /// when an outline pass is also generated.
   static List<(Offset, Offset)> computeFillLines(
     Path path,
     FillDirection direction,
-    double linesPerMm,
-  ) {
+    double linesPerMm, {
+    double inset = 0.0,
+  }) {
     final bounds = path.getBounds();
     if (bounds.isEmpty) return const [];
 
@@ -238,11 +252,14 @@ class GcodeGenerator {
 
     if (direction == FillDirection.horizontal) {
       var leftToRight = true;
-      var y = bounds.top + step * 0.5;
-      while (y < bounds.bottom) {
+      var y = bounds.top + inset.clamp(0, double.infinity);
+      if (y < bounds.top + step * 0.5) y = bounds.top + step * 0.5;
+      while (y < bounds.bottom - inset) {
         final xs = _crossingsX(contours, y);
         for (var i = 0; i + 1 < xs.length; i += 2) {
-          final a = xs[i], b = xs[i + 1];
+          final a = xs[i] + inset;
+          final b = xs[i + 1] - inset;
+          if (a >= b) continue;
           result.add(leftToRight
               ? (Offset(a, y), Offset(b, y))
               : (Offset(b, y), Offset(a, y)));
@@ -252,11 +269,14 @@ class GcodeGenerator {
       }
     } else {
       var topToBottom = true;
-      var x = bounds.left + step * 0.5;
-      while (x < bounds.right) {
+      var x = bounds.left + inset.clamp(0, double.infinity);
+      if (x < bounds.left + step * 0.5) x = bounds.left + step * 0.5;
+      while (x < bounds.right - inset) {
         final ys = _crossingsY(contours, x);
         for (var i = 0; i + 1 < ys.length; i += 2) {
-          final a = ys[i], b = ys[i + 1];
+          final a = ys[i] + inset;
+          final b = ys[i + 1] - inset;
+          if (a >= b) continue;
           result.add(topToBottom
               ? (Offset(x, a), Offset(x, b))
               : (Offset(x, b), Offset(x, a)));
