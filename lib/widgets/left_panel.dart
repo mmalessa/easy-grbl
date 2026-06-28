@@ -66,7 +66,28 @@ class LeftPanel extends StatefulWidget {
 }
 
 class _LeftPanelState extends State<LeftPanel> {
-  double _settingsHeight = 240;
+  bool _settingsCollapsed = false;
+  double? _settingsHeight; // null = natural height
+  final _settingsBoxKey = GlobalKey();
+
+  @override
+  void didUpdateWidget(LeftPanel old) {
+    super.didUpdateWidget(old);
+    if (old.selectedNode?.id != widget.selectedNode?.id) {
+      _settingsCollapsed = false;
+      _settingsHeight = null;
+    }
+  }
+
+  void _onSettingsDrag(double delta) {
+    final rb =
+        _settingsBoxKey.currentContext?.findRenderObject() as RenderBox?;
+    final current =
+        (rb != null && rb.hasSize) ? rb.size.height : (_settingsHeight ?? 220.0);
+    setState(() {
+      _settingsHeight = (current - delta).clamp(80.0, 600.0);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,34 +145,52 @@ class _LeftPanelState extends State<LeftPanel> {
 
             // ── Layer Settings (shown when a node is selected) ──────────
             if (hasSettings) ...[
-              _DragHandle(
-                onDrag: (delta) {
-                  setState(() {
-                    _settingsHeight =
-                        (_settingsHeight - delta).clamp(150, 500);
-                  });
-                },
-              ),
+              if (!_settingsCollapsed) _DragHandle(onDrag: _onSettingsDrag),
               const Divider(height: 1, thickness: 1),
               PanelSectionHeader(
                 title: 'Layer Settings',
                 icon: Icons.tune_outlined,
-                trailing: GestureDetector(
-                  onTap: () => widget.onSelect(widget.selectedNode!),
-                  child: const Icon(Icons.close, size: 14),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => setState(
+                          () => _settingsCollapsed = !_settingsCollapsed),
+                      child: Icon(
+                        _settingsCollapsed
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        size: 14,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    GestureDetector(
+                      onTap: () => widget.onSelect(widget.selectedNode!),
+                      child: const Icon(Icons.close, size: 14),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(
-                height: _settingsHeight,
-                child: SingleChildScrollView(
-                  child: LayerSettingsPanel(
-                    key: ValueKey(widget.selectedNode!.id),
-                    node: widget.selectedNode!,
-                    machineSettings: widget.machineSettings,
-                    onChanged: (s) =>
-                        widget.onSettingsChanged(widget.selectedNode!, s),
-                  ),
-                ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeInOut,
+                child: _settingsCollapsed
+                    ? const SizedBox.shrink()
+                    : ConstrainedBox(
+                        key: _settingsBoxKey,
+                        constraints: BoxConstraints(
+                          maxHeight: _settingsHeight ?? double.infinity,
+                        ),
+                        child: SingleChildScrollView(
+                          child: LayerSettingsPanel(
+                            key: ValueKey(widget.selectedNode!.id),
+                            node: widget.selectedNode!,
+                            machineSettings: widget.machineSettings,
+                            onChanged: (s) =>
+                                widget.onSettingsChanged(widget.selectedNode!, s),
+                          ),
+                        ),
+                      ),
               ),
             ],
           ],
@@ -164,25 +203,29 @@ class _LeftPanelState extends State<LeftPanel> {
 // ---------------------------------------------------------------------------
 
 class _DragHandle extends StatelessWidget {
-  final void Function(double delta) onDrag;
+  final ValueChanged<double> onDrag;
 
   const _DragHandle({required this.onDrag});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onVerticalDragUpdate: (d) => onDrag(d.delta.dy),
-      child: Container(
-        height: 10,
-        color: Colors.transparent,
-        alignment: Alignment.center,
-        child: Container(
-          width: 32,
-          height: 4,
-          decoration: BoxDecoration(
-            color: cs.outlineVariant,
-            borderRadius: BorderRadius.circular(2),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.resizeRow,
+        child: SizedBox(
+          height: 10,
+          child: Center(
+            child: Container(
+              width: 32,
+              height: 3,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
           ),
         ),
       ),
