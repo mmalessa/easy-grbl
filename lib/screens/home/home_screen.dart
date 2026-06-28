@@ -127,7 +127,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (result == null || !mounted) return;
 
     if (result.mock) {
-      if (_grbl is GrblMockService) return; // already on mock
+      if (_grbl is GrblMockService && _grbl.connected) return; // already connected
+      if (_grbl is GrblMockService) {
+        (_grbl as GrblMockService).connect(); // reconnect existing mock
+        return;
+      }
       final old = _grbl;
       final mock = GrblMockService()..connect();
       mock.machineSettings = _machineSettings;

@@ -25,6 +25,9 @@ class RunPanel extends StatelessWidget {
         if (document == null) {
           return _hint('Load an SVG file to run a job.', cs);
         }
+        if (!service.connected) {
+          return _hint('Connect to machine to run a job.', cs);
+        }
         if (service.isJobRunning) return _running(context, cs);
         return _idle(context, cs);
       },

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
+import 'package:flutter/scheduler.dart';
 import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
@@ -27,8 +28,9 @@ class GrblMockService extends GrblService {
   // ── Connection ───────────────────────────────────────────────────
 
   void connect() {
-    Future.delayed(const Duration(milliseconds: 320), () {
-      if (_disposed) return;
+    if (connected) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (_disposed || connected) return;
       logRx("Grbl 1.1h ['\$' for help]");
       logRx("[MSG:'\$H'|'\$X' to unlock]");
       connected = true;
