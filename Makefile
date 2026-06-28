@@ -1,5 +1,9 @@
 APP_NAME    := easy_grbl
-VERSION     := $(shell grep '^version:' pubspec.yaml | awk '{split($$2,a,"+"); print a[1]}')
+ifeq ($(OS),Windows_NT)
+    VERSION := $(shell powershell -Command "(Get-Content pubspec.yaml | Select-String '^version:').ToString().Split(' ')[1].Split('+')[0]")
+else
+    VERSION := $(shell grep '^version:' pubspec.yaml | awk '{split($$2,a,"+"); print a[1]}')
+endif
 BUILD_DIR   := build
 
 # Linux paths

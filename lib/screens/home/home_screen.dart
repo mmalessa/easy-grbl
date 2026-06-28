@@ -38,9 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    final mock = GrblMockService();
-    _grbl = mock;
-    mock.connect();
+    _grbl = GrblMockService();
     _loadSettings();
   }
 
