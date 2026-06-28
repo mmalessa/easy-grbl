@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'svg_path_model.dart';
 
 class SvgPathParser {
-  /// Wyciąga wszystkie ścieżki z SVG i konwertuje różne elementy na ścieżki
+  /// Extracts all paths from SVG and converts various elements to paths
   static List<SvgPathModel> extractPaths(String svgContent) {
     final List<SvgPathModel> result = [];
 
@@ -171,7 +171,7 @@ class SvgPathParser {
             final y = points[i + 1];
             sb.write(i == 0 ? 'M $x,$y ' : 'L $x,$y ');
           }
-          sb.write('Z'); // zamknięcie
+          sb.write('Z'); // close path
           result.add(SvgPathModel(id: id, d: sb.toString().trim()));
         }
       }

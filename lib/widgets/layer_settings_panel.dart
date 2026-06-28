@@ -572,7 +572,7 @@ class _OutlineCheckbox extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Obrys (outline)',
+                    'Outline',
                     style: TextStyle(
                       fontSize: 11,
                       color: value ? color : cs.onSurface,
@@ -581,7 +581,7 @@ class _OutlineCheckbox extends StatelessWidget {
                   ),
                   if (value)
                     Text(
-                      'fill cofnięty o ${inset.toStringAsFixed(3)} mm (½ plamki)',
+                      'fill inset by ${inset.toStringAsFixed(3)} mm (½ spot size)',
                       style: TextStyle(
                         fontSize: 9,
                         color: cs.onSurfaceVariant,
