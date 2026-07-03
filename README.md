@@ -2,7 +2,7 @@
 
 Desktop application for controlling CNC and laser machines via the GRBL firmware. Designed for Linux and Windows.
 
-Built with Flutter.
+<img width="1282" height="745" alt="Image" src="https://github.com/user-attachments/assets/28d3ade3-6e16-412c-a525-5cceb7c56235" />
 
 ---
 
