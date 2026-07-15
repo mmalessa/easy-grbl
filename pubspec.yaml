@@ -40,6 +40,7 @@ dependencies:
   xml: ^6.5.0
   flutter_libserialport: ^0.6.0
   shared_preferences: ^2.3.0
+  clipper2: ^0.0.3
 
 dev_dependencies:
   flutter_test:

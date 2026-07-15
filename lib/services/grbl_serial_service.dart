@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 import '../models/svg_document.dart';
+import '../models/machine_settings.dart';
 import 'grbl_service.dart';
 import 'gcode_generator.dart';
 
@@ -20,6 +21,10 @@ class GrblSerialService extends GrblService {
 
   // Cached work-coordinate offset (updated when GRBL sends WCO in status)
   double _wcox = 0, _wcoy = 0, _wcoz = 0;
+
+  // '$$' settings query (used to read the device's actual $32 laser-mode flag)
+  Map<String, String> _settingsBuffer = {};
+  Completer<Map<String, String>>? _settingsCompleter;
 
   @override
   bool get isJobPaused => _jobPaused;
@@ -95,7 +100,36 @@ class GrblSerialService extends GrblService {
     jobProgress = 0;
     jobCurrentLabel = '';
     _wcox = 0; _wcoy = 0; _wcoz = 0;
+    _settingsCompleter?.complete(_settingsBuffer);
+    _settingsCompleter = null;
     setMachineStatus(MachineStatus.idle);
+  }
+
+  // ── Settings query ───────────────────────────────────────────────
+
+  /// Sends '$$' and parses the '$32=' line to determine whether the
+  /// device's firmware is configured for laser mode.
+  @override
+  Future<MachineType?> queryMachineType() async {
+    if (_port == null || !_port!.isOpen) return null;
+    _settingsBuffer = {};
+    final completer = Completer<Map<String, String>>();
+    _settingsCompleter = completer;
+    _sendRaw('\$\$');
+    final settings = await completer.future
+        .timeout(const Duration(seconds: 3), onTimeout: () => _settingsBuffer);
+    if (identical(_settingsCompleter, completer)) _settingsCompleter = null;
+    final laserFlag = settings['32'];
+    if (laserFlag == null) return null;
+    return laserFlag.trim() == '1' ? MachineType.laser : MachineType.mill;
+  }
+
+  /// Writes GRBL's $32 laser-mode setting on the device.
+  @override
+  Future<bool> setDeviceLaserMode(bool enabled) async {
+    if (_port == null || !_port!.isOpen) return false;
+    _sendRaw('\$32=${enabled ? 1 : 0}');
+    return _waitAck();
   }
 
   // ── Serial I/O ───────────────────────────────────────────────────
@@ -133,6 +167,13 @@ class GrblSerialService extends GrblService {
       return;
     }
     logRx(line);
+
+    final settingM = _settingRe.firstMatch(line);
+    if (settingM != null && _settingsCompleter != null) {
+      _settingsBuffer[settingM.group(1)!] = settingM.group(2)!;
+      return;
+    }
+
     if (line.startsWith('Grbl ')) {
       // GRBL startup message — fired after soft reset or power-on.
       // If we triggered the reset via Stop, automatically unlock alarm.
@@ -141,6 +182,9 @@ class GrblSerialService extends GrblService {
         _sendRaw('\$X');
       }
     } else if (line == 'ok') {
+      if (_settingsCompleter != null && !_settingsCompleter!.isCompleted) {
+        _settingsCompleter!.complete(Map.of(_settingsBuffer));
+      }
       _ackCompleter?.complete(true);
       _ackCompleter = null;
     } else if (line.startsWith('error:')) {
@@ -151,6 +195,7 @@ class GrblSerialService extends GrblService {
     }
   }
 
+  static final _settingRe = RegExp(r'^\$(\d+)=(.+)$');
   static final _stRe   = RegExp(r'<(\w+)[|>]');
   static final _wposRe = RegExp(r'WPos:([-\d.]+),([-\d.]+),([-\d.]+)');
   static final _mposRe = RegExp(r'MPos:([-\d.]+),([-\d.]+),([-\d.]+)');

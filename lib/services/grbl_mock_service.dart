@@ -6,10 +6,12 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/layer_settings.dart';
+import '../models/machine_settings.dart';
 import '../models/operation_type.dart';
 import 'affine.dart';
 import 'gcode_generator.dart';
 import 'grbl_service.dart';
+import 'path_offset.dart';
 
 // label is empty for rapid-move steps (cursor jumps to path start without
 // updating the displayed label).
@@ -45,6 +47,25 @@ class GrblMockService extends GrblService {
   void disconnect() {
     connected = false;
     notifyListeners();
+  }
+
+  // Simulated firmware state, separate from the app-side machineSettings
+  // so mismatches can be reproduced/tested. Defaults to the app's current
+  // machine type the first time it's queried after connecting.
+  MachineType? _mockDeviceType;
+
+  @override
+  Future<MachineType?> queryMachineType() async {
+    if (!connected) return null;
+    _mockDeviceType ??= machineSettings.machineType;
+    return _mockDeviceType;
+  }
+
+  @override
+  Future<bool> setDeviceLaserMode(bool enabled) async {
+    if (!connected) return false;
+    _mockDeviceType = enabled ? MachineType.laser : MachineType.mill;
+    return true;
   }
 
   // ── Jogging ──────────────────────────────────────────────────────
@@ -228,7 +249,10 @@ class GrblMockService extends GrblService {
           for (var pass = 0; pass < passes; pass++) {
             final pts = eff == OperationType.fill
                 ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings)
-                : _samplePath(n.pathData!, m, doc.viewBox);
+                : _samplePath(n.pathData!, m, doc.viewBox,
+                    offsetDeltaMm: eff == OperationType.cut
+                        ? _cutOffsetDelta(machineSettings, effSettings)
+                        : 0.0);
             if (pts.isEmpty) continue;
             final label = passes > 1
                 ? '${eff.label}: ${n.label} (pass ${pass + 1}/$passes)'
@@ -269,8 +293,10 @@ class GrblMockService extends GrblService {
   }
 
   // Sample ~20 evenly-spaced points from all contours of a path, transformed
-  // to machine coordinates (origin at bottom-left, Y-up).
-  List<Offset> _samplePath(String pathData, SvgAffine xform, Rect vb) {
+  // to machine coordinates (origin at bottom-left, Y-up). Each contour is
+  // offset independently (for Cut) before being flattened into one list.
+  List<Offset> _samplePath(String pathData, SvgAffine xform, Rect vb,
+      {double offsetDeltaMm = 0.0}) {
     try {
       final path = parseSvgPathData(pathData);
       final metrics = path.computeMetrics().toList();
@@ -281,14 +307,19 @@ class GrblMockService extends GrblService {
       final pts = <Offset>[];
 
       for (final metric in metrics) {
+        var contourPts = <Offset>[];
         for (var i = 0; i <= perContour; i++) {
           final d = metric.length * i / perContour;
           final t = metric.getTangentForOffset(d);
           if (t != null) {
             final tp = xform.apply(t.position);
-            pts.add(Offset(tp.dx - vb.left, vb.bottom - tp.dy));
+            contourPts.add(Offset(tp.dx - vb.left, vb.bottom - tp.dy));
           }
         }
+        if (offsetDeltaMm != 0) {
+          contourPts = PathOffset.offsetClosedContour(contourPts, offsetDeltaMm);
+        }
+        pts.addAll(contourPts);
       }
       return pts;
     } catch (_) {
@@ -340,4 +371,15 @@ class GrblMockService extends GrblService {
     _jobTimer?.cancel();
     super.dispose();
   }
+}
+
+/// Signed XY offset (mm) for a Cut layer's toolpath: outer grows, inner
+/// shrinks, by the tool/spot's effective diameter at the layer's cut depth.
+double _cutOffsetDelta(MachineSettings machineSettings, LayerSettings s) {
+  final effDiam = machineSettings.effectiveDiameterAt(s.cutDepthMm);
+  return switch (s.cutSide) {
+    CutSide.line => 0.0,
+    CutSide.outer => effDiam / 2,
+    CutSide.inner => -effDiam / 2,
+  };
 }

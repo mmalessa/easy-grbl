@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 enum MachineType { laser, mill }
 
 extension MachineTypeDisplay on MachineType {
@@ -41,6 +43,8 @@ class MachineSettings {
   final double cutFeedRate;
   final int fillSpindleSpeed;
   final double fillFeedRate;
+  final double safeHeight;
+  final double travelFeedRate;
   final int defaultBaudRate;
 
   const MachineSettings({
@@ -48,9 +52,9 @@ class MachineSettings {
     this.laserMode = LaserMode.constant,
     this.sMax = 1000,
     this.laserSpotSize = 0.1,
-    this.maxSpindleSpeed = 24000,
-    this.maxFeedRate = 3000.0,
-    this.toolDiameter = 3.175,
+    this.maxSpindleSpeed = 1000,
+    this.maxFeedRate = 10.0,
+    this.toolDiameter = 2.0,
     this.bladeAngle = 30.0,
     this.engravePower = 60,
     this.engraveSpeed = 3000,
@@ -64,8 +68,23 @@ class MachineSettings {
     this.cutFeedRate = 30.0,
     this.fillSpindleSpeed = 18000,
     this.fillFeedRate = 50.0,
+    this.safeHeight = 5.0,
+    this.travelFeedRate = 25.0,
     this.defaultBaudRate = 115200,
   });
+
+  /// Effective tool/spot diameter (mm) at a given cut depth below the
+  /// surface. Laser always uses the full spot size (no taper). Mill tapers
+  /// with the V-bit's Included angle — a 180° (straight) bit stays at its
+  /// nominal diameter regardless of depth; a narrower angle is a cone, so
+  /// the diameter at the tip is smaller than the nominal (widest) diameter.
+  double effectiveDiameterAt(double cutDepthMm) {
+    if (machineType == MachineType.laser) return laserSpotSize;
+    if (bladeAngle >= 179.99) return toolDiameter;
+    final halfAngle = bladeAngle / 2 * math.pi / 180;
+    final atDepth = 2 * cutDepthMm.abs() * math.tan(halfAngle);
+    return atDepth.clamp(0.0, toolDiameter);
+  }
 
   MachineSettings copyWith({
     MachineType? machineType,
@@ -88,6 +107,8 @@ class MachineSettings {
     double? cutFeedRate,
     int? fillSpindleSpeed,
     double? fillFeedRate,
+    double? safeHeight,
+    double? travelFeedRate,
     int? defaultBaudRate,
   }) =>
       MachineSettings(
@@ -111,6 +132,8 @@ class MachineSettings {
         cutFeedRate: cutFeedRate ?? this.cutFeedRate,
         fillSpindleSpeed: fillSpindleSpeed ?? this.fillSpindleSpeed,
         fillFeedRate: fillFeedRate ?? this.fillFeedRate,
+        safeHeight: safeHeight ?? this.safeHeight,
+        travelFeedRate: travelFeedRate ?? this.travelFeedRate,
         defaultBaudRate: defaultBaudRate ?? this.defaultBaudRate,
       );
 }

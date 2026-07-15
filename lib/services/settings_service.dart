@@ -33,6 +33,8 @@ class SettingsService {
       cutFeedRate: p.getDouble('${_prefix}cutFeedRate') ?? 30.0,
       fillSpindleSpeed: p.getInt('${_prefix}fillSpindleSpeed') ?? 18000,
       fillFeedRate: p.getDouble('${_prefix}fillFeedRate') ?? 50.0,
+      safeHeight: p.getDouble('${_prefix}safeHeight') ?? 5.0,
+      travelFeedRate: p.getDouble('${_prefix}travelFeedRate') ?? 25.0,
       defaultBaudRate: p.getInt('${_prefix}defaultBaudRate') ?? 115200,
     );
   }
@@ -60,6 +62,8 @@ class SettingsService {
       p.setDouble('${_prefix}cutFeedRate', s.cutFeedRate),
       p.setInt('${_prefix}fillSpindleSpeed', s.fillSpindleSpeed),
       p.setDouble('${_prefix}fillFeedRate', s.fillFeedRate),
+      p.setDouble('${_prefix}safeHeight', s.safeHeight),
+      p.setDouble('${_prefix}travelFeedRate', s.travelFeedRate),
       p.setInt('${_prefix}defaultBaudRate', s.defaultBaudRate),
     ]);
   }

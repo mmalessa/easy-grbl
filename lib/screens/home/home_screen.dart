@@ -83,7 +83,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _openMachineSettings() async {
     final result =
-        await showMachineSettingsDialog(context, _machineSettings);
+        await showMachineSettingsDialog(context, _machineSettings, _grbl);
     if (result != null) {
       setState(() => _machineSettings = result);
       _grbl.machineSettings = result;

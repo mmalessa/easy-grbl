@@ -102,6 +102,14 @@ abstract class GrblService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Queries the connected device for its actual configured machine type
+  /// (laser vs. mill), independent of the app-side [machineSettings].
+  /// Returns null if not connected or the device didn't report it.
+  Future<MachineType?> queryMachineType() async => null;
+
+  /// Writes the device's GRBL $32 laser-mode flag. Returns true on ack.
+  Future<bool> setDeviceLaserMode(bool enabled) async => false;
+
   // ── Abstract operations ──────────────────────────────────────────
   void disconnect();
   void jog(double dx, double dy, double dz);

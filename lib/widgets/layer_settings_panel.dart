@@ -24,15 +24,18 @@ class LayerSettingsPanel extends StatefulWidget {
 class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
   late OperationType _opType;
   late double _power;
-  late int _speed;
+  late double _speed;
   late int _passes;
   late FillDirection _fillDirection;
   late double _linesPerMm;
   late bool _fillOutline;
+  late CutSide _cutSide;
+  late TextEditingController _cutDepthCtrl;
 
   @override
   void initState() {
     super.initState();
+    _cutDepthCtrl = TextEditingController();
     _load();
   }
 
@@ -42,26 +45,44 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
     if (old.node.id != widget.node.id) setState(_load);
   }
 
+  @override
+  void dispose() {
+    _cutDepthCtrl.dispose();
+    super.dispose();
+  }
+
   void _load() {
     final s = widget.node.settings;
     _opType = s.operationType;
     _power = s.powerPercent.toDouble();
-    _speed = s.speedMmMin;
+    _speed = s.speedMmS;
     _passes = s.passes;
     _fillDirection = s.fillDirection;
     _linesPerMm = s.linesPerMm;
     _fillOutline = s.fillOutline;
+    _cutSide = s.cutSide;
+    _cutDepthCtrl.text = s.cutDepthMm.toStringAsFixed(2);
+  }
+
+  double get _cutDepthMm {
+    final v = double.tryParse(_cutDepthCtrl.text.replaceAll(',', '.'));
+    return (v != null && v > 0) ? v : 1.0;
   }
 
   void _emit() => widget.onChanged(LayerSettings(
         operationType: _opType,
         powerPercent: _power.round(),
-        speedMmMin: _speed,
+        speedMmS: _speed,
         passes: _passes,
         fillDirection: _fillDirection,
         linesPerMm: _linesPerMm,
         fillOutline: _fillOutline,
+        cutSide: _cutSide,
+        cutDepthMm: _cutDepthMm,
       ));
+
+  double get _effectiveDiam =>
+      widget.machineSettings.effectiveDiameterAt(_cutDepthMm);
 
   double get _autoLinesPerMm {
     final spot = widget.machineSettings.laserSpotSize;
@@ -75,6 +96,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
         ? Colors.grey
         : _opType.color;
     final isFill = _opType == OperationType.fill;
+    final isCut = _opType == OperationType.cut;
 
     return Container(
       color: cs.surface,
@@ -107,15 +129,16 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
               setState(() {
                 _opType = v;
                 final ms = widget.machineSettings;
+                final isMill = ms.machineType == MachineType.mill;
                 if (v == OperationType.engrave) {
                   _power = ms.engravePower.toDouble();
-                  _speed = ms.engraveSpeed;
+                  _speed = isMill ? ms.engraveFeedRate : ms.engraveSpeed / 60.0;
                 } else if (v == OperationType.cut) {
                   _power = ms.cutPower.toDouble();
-                  _speed = ms.cutSpeed;
+                  _speed = isMill ? ms.cutFeedRate : ms.cutSpeed / 60.0;
                 } else if (v == OperationType.fill) {
                   _power = ms.fillPower.toDouble();
-                  _speed = ms.fillSpeed;
+                  _speed = isMill ? ms.fillFeedRate : ms.fillSpeed / 60.0;
                   _linesPerMm = _autoLinesPerMm;
                 }
               });
@@ -165,14 +188,11 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
           const SizedBox(height: 8),
 
           // Speed
-          _label('Speed (mm/min)'),
+          _label('Speed (mm/s)'),
           const SizedBox(height: 4),
-          _Counter(
+          _SpeedCounter(
             value: _speed,
-            step: 100,
-            min: 10,
-            max: 30000,
-            accentColor: color,
+            color: color,
             onChanged: (v) {
               setState(() => _speed = v);
               _emit();
@@ -247,6 +267,46 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
                 _emit();
               },
             ),
+          ],
+
+          // Cut-specific settings
+          if (isCut) ...[
+            Divider(height: 16, thickness: 1, color: cs.outlineVariant),
+            _label('Cut side'),
+            const SizedBox(height: 4),
+            _CutSidePicker(
+              value: _cutSide,
+              color: color,
+              onChanged: (v) {
+                setState(() => _cutSide = v);
+                _emit();
+              },
+            ),
+            if (widget.machineSettings.machineType == MachineType.mill) ...[
+              const SizedBox(height: 10),
+              _label('Cut depth (mm)'),
+              const SizedBox(height: 4),
+              _DepthCounter(
+                controller: _cutDepthCtrl,
+                color: color,
+                onChanged: () {
+                  setState(() {});
+                  _emit();
+                },
+              ),
+            ],
+            if (_cutSide != CutSide.line) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Effective Ø ${_effectiveDiam.toStringAsFixed(3)} mm '
+                '→ offset ${(_effectiveDiam / 2).toStringAsFixed(3)} mm (${_cutSide.label})',
+                style: TextStyle(
+                  fontSize: 9,
+                  color: cs.onSurfaceVariant,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
           ],
         ],
       ),
@@ -393,6 +453,146 @@ class _DirectionPicker extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+class _CutSidePicker extends StatelessWidget {
+  final CutSide value;
+  final Color color;
+  final void Function(CutSide) onChanged;
+
+  const _CutSidePicker({
+    required this.value,
+    required this.color,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: CutSide.values.map((side) {
+        final sel = side == value;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => onChanged(side),
+            child: Container(
+              margin: const EdgeInsets.only(right: 3),
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              decoration: BoxDecoration(
+                color: sel ? color.withValues(alpha: 0.15) : cs.surfaceContainerLowest,
+                border: Border.all(
+                  color: sel ? color : cs.outlineVariant,
+                  width: sel ? 1.5 : 1,
+                ),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                side.label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: sel ? FontWeight.w700 : FontWeight.normal,
+                  color: sel ? color : cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _DepthCounter extends StatelessWidget {
+  final TextEditingController controller;
+  final Color color;
+  final VoidCallback onChanged;
+
+  const _DepthCounter({
+    required this.controller,
+    required this.color,
+    required this.onChanged,
+  });
+
+  static const double step = 0.1;
+  static const double min = 0.01;
+  static const double max = 50.0;
+
+  double? get _parsed => double.tryParse(controller.text.replaceAll(',', '.'));
+  bool get _isValid {
+    final v = _parsed;
+    return v != null && v > 0;
+  }
+
+  void _nudge(double delta) {
+    final v = (_parsed ?? min) + delta;
+    controller.text = v.clamp(min, max).toStringAsFixed(2);
+    onChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final valid = _isValid;
+    return Row(
+      children: [
+        _btn(Icons.remove, () => _nudge(-step), cs),
+        Expanded(
+          child: SizedBox(
+            height: 26,
+            child: TextField(
+              controller: controller,
+              textAlign: TextAlign.center,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: valid ? cs.onSurface : cs.error,
+              ),
+              decoration: InputDecoration(
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                filled: true,
+                fillColor: cs.surfaceContainerLowest,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: valid ? cs.outline : cs.error),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: valid ? cs.outline : cs.error),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(4),
+                  borderSide: BorderSide(color: valid ? color : cs.error),
+                ),
+              ),
+              onChanged: (_) => onChanged(),
+            ),
+          ),
+        ),
+        _btn(Icons.add, () => _nudge(step), cs),
+      ],
+    );
+  }
+
+  Widget _btn(IconData icon, VoidCallback onTap, ColorScheme cs) => SizedBox(
+        width: 28,
+        height: 26,
+        child: Material(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(4),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(4),
+            child: Icon(icon, size: 13, color: color),
+          ),
+        ),
+      );
+}
+
+// ---------------------------------------------------------------------------
+
 class _LinesPerMmCounter extends StatelessWidget {
   final double value;
   final double autoValue;
@@ -450,6 +650,60 @@ class _LinesPerMmCounter extends StatelessWidget {
             ),
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _btn(IconData icon, VoidCallback? onTap, ColorScheme cs) => SizedBox(
+        width: 28,
+        height: 26,
+        child: Material(
+          color: onTap != null ? color.withValues(alpha: 0.12) : cs.surfaceContainerLowest,
+          borderRadius: BorderRadius.circular(4),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(4),
+            child: Icon(icon,
+                size: 13,
+                color: onTap != null ? color : cs.onSurfaceVariant),
+          ),
+        ),
+      );
+}
+
+// ---------------------------------------------------------------------------
+
+class _SpeedCounter extends StatelessWidget {
+  final double value;
+  final Color color;
+  final void Function(double) onChanged;
+
+  const _SpeedCounter({
+    required this.value,
+    required this.color,
+    required this.onChanged,
+  });
+
+  static const double _step = 1.0;
+  static const double _min = 0.1;
+  static const double _max = 500.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        _btn(Icons.remove,
+            value > _min ? () => onChanged((value - _step).clamp(_min, _max)) : null, cs),
+        Expanded(
+          child: Text(
+            value.toStringAsFixed(1),
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
+        _btn(Icons.add,
+            value < _max ? () => onChanged((value + _step).clamp(_min, _max)) : null, cs),
       ],
     );
   }

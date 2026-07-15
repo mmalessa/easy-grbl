@@ -1,5 +1,7 @@
 # EasyGRBL
 
+> ⚠️ **Unstable / early development.** This project is under active development and has not been thoroughly tested. It controls real CNC/laser hardware — bugs can cause unexpected machine movement, tool plunges, or damage to your machine, tooling, or workpiece. **Use at your own risk.**
+
 Desktop application for controlling CNC and laser machines via the GRBL firmware. Designed for Linux and Windows.
 
 <img width="1282" height="745" alt="Image" src="https://github.com/user-attachments/assets/28d3ade3-6e16-412c-a525-5cceb7c56235" />

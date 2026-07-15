@@ -6,6 +6,7 @@ import '../models/operation_type.dart';
 import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import 'affine.dart';
+import 'path_offset.dart';
 
 class GcodeGenerator {
   static const double _step = 0.1; // mm per sample along curves
@@ -33,9 +34,17 @@ class GcodeGenerator {
 
     _walkNodes(doc.roots, SvgAffine.identity, vb, true, null, null, settings, buf);
 
+    buf.writeln();
+    if (settings.machineType == MachineType.mill) {
+      final travelF = (settings.travelFeedRate * 60).round(); // mm/s -> mm/min
+      buf
+        ..writeln('G1 Z${_f(settings.safeHeight)} F$travelF ; retract to safe height')
+        ..writeln('G0 X0 Y0 ; XY HOME')
+        ..writeln('G1 Z0 F$travelF ; Z HOME');
+    } else {
+      buf.writeln('G0 X0 Y0 Z0 ; HOME');
+    }
     buf
-      ..writeln()
-      ..writeln('G0 X0 Y0 Z0 ; HOME')
       ..writeln('M5 S0 ; laser off')
       ..writeln('M2 ; end of program');
 
@@ -68,33 +77,50 @@ class GcodeGenerator {
           effectiveOp != OperationType.skip) {
         final s = effectiveSettings;
 
+        final feedRateMmMin = (s.speedMmS * 60).round(); // mm/s -> mm/min for F
+
         if (effectiveOp == OperationType.fill) {
           final inset = s.fillOutline ? settings.laserSpotSize / 2 : 0.0;
           buf.writeln(
             '; --- ${node.label} [Fill]'
-            '  power:${s.powerPercent}%  speed:${s.speedMmMin} mm/min'
+            '  power:${s.powerPercent}%  speed:${s.speedMmS.toStringAsFixed(1)} mm/s'
             '  lines/mm:${s.linesPerMm.toStringAsFixed(1)}'
             '  dir:${s.fillDirection.name}'
             '${s.fillOutline ? '  outline:yes  inset:${inset.toStringAsFixed(3)}mm' : ''} ---',
           );
           _fillToGcode(node.pathData!, combined, vb, s.powerPercent,
-              s.speedMmMin, s.fillDirection, s.linesPerMm, settings, buf,
+              feedRateMmMin, s.fillDirection, s.linesPerMm, settings, buf,
               inset: inset);
           if (s.fillOutline) {
             buf.writeln('; outline pass');
             _pathToGcode(node.pathData!, combined, vb, s.powerPercent,
-                s.speedMmMin, settings, buf);
+                feedRateMmMin, settings, buf);
           }
         } else {
+          final isCut = effectiveOp == OperationType.cut;
+          final effDiam =
+              isCut ? settings.effectiveDiameterAt(s.cutDepthMm) : 0.0;
+          final offsetDelta = switch (isCut ? s.cutSide : CutSide.line) {
+            CutSide.line => 0.0,
+            CutSide.outer => effDiam / 2,
+            CutSide.inner => -effDiam / 2,
+          };
+          final plungeZ = (isCut && settings.machineType == MachineType.mill)
+              ? s.cutDepthMm
+              : null;
+
           buf.writeln(
             '; --- ${node.label} [${effectiveOp.label}]'
-            '  power:${s.powerPercent}%  speed:${s.speedMmMin} mm/min'
-            '  passes:${s.passes} ---',
+            '  power:${s.powerPercent}%  speed:${s.speedMmS.toStringAsFixed(1)} mm/s'
+            '  passes:${s.passes}'
+            '${offsetDelta != 0 ? '  side:${s.cutSide.name} offset:${offsetDelta.toStringAsFixed(3)}mm' : ''}'
+            '${plungeZ != null ? '  Z:-${plungeZ.toStringAsFixed(3)}mm' : ''} ---',
           );
           for (var pass = 0; pass < s.passes; pass++) {
             if (s.passes > 1) buf.writeln('; pass ${pass + 1}/${s.passes}');
             _pathToGcode(node.pathData!, combined, vb, s.powerPercent,
-                s.speedMmMin, settings, buf);
+                feedRateMmMin, settings, buf,
+                offsetDeltaMm: offsetDelta, plungeZMm: plungeZ);
           }
         }
       }
@@ -114,8 +140,10 @@ class GcodeGenerator {
     int powerPct,
     int feedRate,
     MachineSettings settings,
-    StringBuffer buf,
-  ) {
+    StringBuffer buf, {
+    double offsetDeltaMm = 0.0,
+    double? plungeZMm,
+  }) {
     final Path path;
     try {
       path = parseSvgPathData(pathData);
@@ -123,9 +151,9 @@ class GcodeGenerator {
       return;
     }
     final metrics = path.computeMetrics();
-    final sMax = settings.sMax;
+    final sMax = _sMaxFor(settings);
     final sPower = (powerPct / 100.0 * sMax).round().clamp(0, sMax);
-    int? lastF;
+    final travelF = (settings.travelFeedRate * 60).round(); // mm/s -> mm/min
 
     for (final metric in metrics) {
       if (metric.length < 0.001) continue;
@@ -139,7 +167,7 @@ class GcodeGenerator {
       if (endT != null) raw.add(endT.position);
       if (raw.isEmpty) continue;
 
-      final pts = <Offset>[];
+      var pts = <Offset>[];
       for (final p in raw) {
         final tp = xform.apply(p);
         final gp = Offset(tp.dx - vb.left, vb.bottom - tp.dy);
@@ -149,10 +177,27 @@ class GcodeGenerator {
       }
       if (pts.length < 2) continue;
 
-      buf.writeln('M5 S0');
-      buf.writeln('G0 X${_f(pts.first.dx)} Y${_f(pts.first.dy)}');
-      buf.writeln('${settings.laserMode.gcode} S$sPower');
+      if (offsetDeltaMm != 0) {
+        pts = PathOffset.offsetClosedContour(pts, offsetDeltaMm);
+      }
 
+      buf.writeln('M5 S0');
+      if (plungeZMm != null) {
+        // Mill: rise to safe height before any horizontal travel, move to
+        // the next cut position at that height, then plunge to depth.
+        buf.writeln('G1 Z${_f(settings.safeHeight)} F$travelF');
+        buf.writeln('G1 X${_f(pts.first.dx)} Y${_f(pts.first.dy)} F$travelF');
+        buf.writeln('${settings.laserMode.gcode} S$sPower');
+        buf.writeln('G1 Z${_f(-plungeZMm)} F$travelF');
+      } else {
+        buf.writeln('G0 X${_f(pts.first.dx)} Y${_f(pts.first.dy)}');
+        buf.writeln('${settings.laserMode.gcode} S$sPower');
+      }
+
+      // lastF resets per contour: the travel/plunge moves above (Mill) leave
+      // the machine's modal feed at travelF, so the first cutting move must
+      // always re-assert feedRate rather than assume it's still active.
+      int? lastF;
       for (var i = 1; i < pts.length; i++) {
         final fTag = (lastF == feedRate) ? '' : ' F$feedRate';
         buf.writeln('G1 X${_f(pts[i].dx)} Y${_f(pts[i].dy)}$fTag');
@@ -160,6 +205,9 @@ class GcodeGenerator {
       }
 
       buf.writeln('M5 S0');
+      if (plungeZMm != null) {
+        buf.writeln('G1 Z${_f(settings.safeHeight)} F$travelF');
+      }
     }
   }
 
@@ -189,7 +237,7 @@ class GcodeGenerator {
     final lines = computeFillLines(path, direction, linesPerMm, inset: inset);
     if (lines.isEmpty) return;
 
-    final sMax = settings.sMax;
+    final sMax = _sMaxFor(settings);
     final sPower = (powerPct / 100.0 * sMax).round().clamp(0, sMax);
     int? lastF;
 
@@ -352,4 +400,12 @@ class GcodeGenerator {
   }
 
   static String _f(double v) => v.toStringAsFixed(3);
+
+  /// S-value ceiling for `M3/M4 S<value>`: the laser's $30 max power (sMax)
+  /// for Laser, or the spindle's max RPM for Mill — so "Power %" in Layer
+  /// Settings maps to a real spindle speed instead of a laser-only figure.
+  static int _sMaxFor(MachineSettings settings) =>
+      settings.machineType == MachineType.mill
+          ? settings.maxSpindleSpeed
+          : settings.sMax;
 }

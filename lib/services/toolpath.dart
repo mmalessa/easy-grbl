@@ -7,6 +7,7 @@ import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import 'affine.dart';
 import 'gcode_generator.dart';
+import 'path_offset.dart';
 
 /// Pre-baked toolpath for canvas rendering. All coordinates are in SVG space.
 class ToolpathData {
@@ -81,8 +82,12 @@ void _walkNodes(
       if (eff == OperationType.fill) {
         _sampleFill(node.pathData!, m, effSettings, machineSettings.laserSpotSize, addContour);
       } else {
+        final offsetDelta = eff == OperationType.cut
+            ? _cutOffsetDelta(machineSettings, effSettings)
+            : 0.0;
         for (var pass = 0; pass < effSettings.passes; pass++) {
-          _samplePath(node.pathData!, m, eff.color, addContour);
+          _samplePath(node.pathData!, m, eff.color, addContour,
+              offsetDeltaMm: offsetDelta);
         }
       }
     }
@@ -92,12 +97,24 @@ void _walkNodes(
   }
 }
 
+/// Signed XY offset (mm) for a Cut layer's toolpath: outer grows, inner
+/// shrinks, by the tool/spot's effective diameter at the layer's cut depth.
+double _cutOffsetDelta(MachineSettings machineSettings, LayerSettings s) {
+  final effDiam = machineSettings.effectiveDiameterAt(s.cutDepthMm);
+  return switch (s.cutSide) {
+    CutSide.line => 0.0,
+    CutSide.outer => effDiam / 2,
+    CutSide.inner => -effDiam / 2,
+  };
+}
+
 void _samplePath(
   String pathData,
   SvgAffine xform,
   Color color,
-  void Function(List<Offset>, Color) addContour,
-) {
+  void Function(List<Offset>, Color) addContour, {
+  double offsetDeltaMm = 0.0,
+}) {
   final Path path;
   try {
     path = parseSvgPathData(pathData);
@@ -106,7 +123,7 @@ void _samplePath(
   }
   for (final metric in path.computeMetrics()) {
     if (metric.length < 0.001) continue;
-    final pts = <Offset>[];
+    var pts = <Offset>[];
     for (var d = 0.0; d <= metric.length; d += _step) {
       final t = metric.getTangentForOffset(d);
       if (t != null) {
@@ -119,7 +136,11 @@ void _samplePath(
       final tp = xform.apply(endT.position);
       if (pts.isEmpty || (tp - pts.last).distanceSquared > 0.04) pts.add(tp);
     }
-    if (pts.length >= 2) addContour(pts, color);
+    if (pts.length < 2) continue;
+    if (offsetDeltaMm != 0) {
+      pts = PathOffset.offsetClosedContour(pts, offsetDeltaMm);
+    }
+    addContour(pts, color);
   }
 }
 

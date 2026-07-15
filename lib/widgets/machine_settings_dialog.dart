@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/machine_settings.dart';
 import '../models/operation_type.dart';
+import '../services/grbl_service.dart';
 
 const _kBaudRates = [9600, 19200, 38400, 57600, 115200, 230400, 250000];
 const _kSpeedMin = 100;
@@ -9,17 +10,19 @@ const _kSpeedMax = 30000;
 Future<MachineSettings?> showMachineSettingsDialog(
   BuildContext context,
   MachineSettings current,
+  GrblService grbl,
 ) {
   return showDialog<MachineSettings>(
     context: context,
     barrierDismissible: true,
-    builder: (_) => _MachineSettingsDialog(current: current),
+    builder: (_) => _MachineSettingsDialog(current: current, grbl: grbl),
   );
 }
 
 class _MachineSettingsDialog extends StatefulWidget {
   final MachineSettings current;
-  const _MachineSettingsDialog({required this.current});
+  final GrblService grbl;
+  const _MachineSettingsDialog({required this.current, required this.grbl});
 
   @override
   State<_MachineSettingsDialog> createState() => _MachineSettingsDialogState();
@@ -34,6 +37,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
   late TextEditingController _maxFeedRateCtrl;
   late TextEditingController _toolDiamCtrl;
   late TextEditingController _bladeAngleCtrl;
+  late TextEditingController _safeHeightCtrl;
+  late TextEditingController _travelFeedRateCtrl;
   late double _engravePower;
   late TextEditingController _engraveSpeedCtrl;
   late double _cutPower;
@@ -48,6 +53,9 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
   late TextEditingController _fillFeedCtrl;
   late int _baudRate;
 
+  bool _queryingDevice = false;
+  MachineType? _deviceMachineType;
+
   @override
   void initState() {
     super.initState();
@@ -60,6 +68,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     _maxFeedRateCtrl = TextEditingController(text: s.maxFeedRate.toStringAsFixed(1));
     _toolDiamCtrl = TextEditingController(text: s.toolDiameter.toStringAsFixed(3));
     _bladeAngleCtrl = TextEditingController(text: s.bladeAngle.toStringAsFixed(1));
+    _safeHeightCtrl = TextEditingController(text: s.safeHeight.toStringAsFixed(1));
+    _travelFeedRateCtrl = TextEditingController(text: s.travelFeedRate.toStringAsFixed(1));
     _engravePower = s.engravePower.toDouble();
     _engraveSpeedCtrl = TextEditingController(text: '${s.engraveSpeed}');
     _cutPower = s.cutPower.toDouble();
@@ -73,6 +83,66 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     _fillSpindleCtrl = TextEditingController(text: '${s.fillSpindleSpeed}');
     _fillFeedCtrl = TextEditingController(text: s.fillFeedRate.toStringAsFixed(1));
     _baudRate = s.defaultBaudRate;
+
+    if (widget.grbl.connected) {
+      _queryingDevice = true;
+      widget.grbl.queryMachineType().then((type) {
+        if (!mounted) return;
+        setState(() {
+          _deviceMachineType = type;
+          _queryingDevice = false;
+        });
+        _checkDeviceSync();
+      });
+    }
+  }
+
+  // ── Device sync check ──────────────────────────────────────────────
+  // Compares the app-side MACHINE TYPE selection against what the
+  // connected device actually reports, offering to push the change to
+  // the device's GRBL $32 setting when they disagree.
+
+  bool _syncPromptOpen = false;
+
+  Future<void> _checkDeviceSync() async {
+    if (!widget.grbl.connected) return;
+    if (_deviceMachineType == null || _deviceMachineType == _machineType) return;
+    if (_syncPromptOpen) return;
+    _syncPromptOpen = true;
+    final wanted = _machineType;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Machine type mismatch'),
+        content: Text(
+          'The connected device is configured as ${_deviceMachineType!.label}, '
+          'but the app is set to ${wanted.label}.\n\n'
+          'Update the device configuration to ${wanted.label}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    _syncPromptOpen = false;
+    if (confirmed != true || !mounted) return;
+    final ok = await widget.grbl.setDeviceLaserMode(wanted == MachineType.laser);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _deviceMachineType = wanted);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update device configuration')),
+      );
+    }
   }
 
   @override
@@ -83,6 +153,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     _maxFeedRateCtrl.dispose();
     _toolDiamCtrl.dispose();
     _bladeAngleCtrl.dispose();
+    _safeHeightCtrl.dispose();
+    _travelFeedRateCtrl.dispose();
     _engraveSpeedCtrl.dispose();
     _cutSpeedCtrl.dispose();
     _fillSpeedCtrl.dispose();
@@ -121,7 +193,9 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
       final millParamsOk = _parsePositiveInt(_maxSpindleSpeedCtrl) != null &&
           _parsePositiveDouble(_maxFeedRateCtrl) != null &&
           _parsePositiveDouble(_toolDiamCtrl) != null &&
-          _parsePositiveDouble(_bladeAngleCtrl) != null;
+          _parsePositiveDouble(_bladeAngleCtrl) != null &&
+          _parsePositiveDouble(_safeHeightCtrl) != null &&
+          _parsePositiveDouble(_travelFeedRateCtrl) != null;
       final millDefaultsOk =
           _parsePositiveInt(_cutSpindleCtrl) != null &&
           _parsePositiveDouble(_cutFeedCtrl) != null &&
@@ -142,6 +216,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     final maxFeedRate = _parsePositiveDouble(_maxFeedRateCtrl) ?? widget.current.maxFeedRate;
     final toolDiam = _parsePositiveDouble(_toolDiamCtrl) ?? widget.current.toolDiameter;
     final bladeAngle = _parsePositiveDouble(_bladeAngleCtrl) ?? widget.current.bladeAngle;
+    final safeHeight = _parsePositiveDouble(_safeHeightCtrl) ?? widget.current.safeHeight;
+    final travelFeedRate = _parsePositiveDouble(_travelFeedRateCtrl) ?? widget.current.travelFeedRate;
     return MachineSettings(
       machineType: _machineType,
       laserMode: _laserMode,
@@ -151,6 +227,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
       maxFeedRate: maxFeedRate.clamp(0.1, 100000.0),
       toolDiameter: toolDiam.clamp(0.1, 100.0),
       bladeAngle: bladeAngle.clamp(1.0, 180.0),
+      safeHeight: safeHeight.clamp(0.1, 500.0),
+      travelFeedRate: travelFeedRate.clamp(1.0, 100000.0),
       engravePower: _engravePower.round(),
       engraveSpeed:
           (_parseSpeed(_engraveSpeedCtrl) ?? widget.current.engraveSpeed)
@@ -179,6 +257,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
         _engraveSpeedCtrl, _cutSpeedCtrl, _fillSpeedCtrl,
         _maxSpindleSpeedCtrl, _maxFeedRateCtrl,
         _toolDiamCtrl, _bladeAngleCtrl,
+        _safeHeightCtrl, _travelFeedRateCtrl,
         _engraveSpindleCtrl, _engraveFeedCtrl,
         _cutSpindleCtrl, _cutFeedCtrl,
         _fillSpindleCtrl, _fillFeedCtrl,
@@ -197,6 +276,9 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                _connectionStatusRow(cs),
+                const SizedBox(height: 20),
+
                 _sectionHeader('MACHINE TYPE', cs),
                 _machineTypeSelector(cs),
 
@@ -217,6 +299,10 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                   _toolDiamRow(cs),
                   const SizedBox(height: 14),
                   _bladeAngleRow(cs),
+                  const SizedBox(height: 14),
+                  _safeHeightRow(cs),
+                  const SizedBox(height: 14),
+                  _travelFeedRateRow(cs),
                 ],
 
                 const SizedBox(height: 20),
@@ -276,6 +362,61 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     );
   }
 
+  Widget _connectionStatusRow(ColorScheme cs) {
+    final connected = widget.grbl.connected;
+    final statusColor = connected ? const Color(0xFF388E3C) : cs.error;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: cs.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            connected ? 'Connected' : 'Disconnected',
+            style: TextStyle(
+                color: cs.onSurface, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+          if (connected) ...[
+            const SizedBox(width: 10),
+            Container(width: 1, height: 12, color: cs.outlineVariant),
+            const SizedBox(width: 10),
+            if (_queryingDevice)
+              Text('Detecting device type…',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12))
+            else if (_deviceMachineType == null)
+              Text('Device type unknown',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12))
+            else ...[
+              Icon(
+                _deviceMachineType == MachineType.laser
+                    ? Icons.flash_on
+                    : Icons.build,
+                size: 14,
+                color: cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Device configured as: ${_deviceMachineType!.label}',
+                style: TextStyle(
+                    color: cs.onSurface, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
   Widget _sectionHeader(String title, ColorScheme cs) => Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Text(
@@ -298,7 +439,10 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
           final sel = m == _machineType;
           return Expanded(
             child: GestureDetector(
-              onTap: () => setState(() => _machineType = m),
+              onTap: () {
+                setState(() => _machineType = m);
+                _checkDeviceSync();
+              },
               child: Container(
                 margin: const EdgeInsets.only(right: 4),
                 padding: const EdgeInsets.symmetric(vertical: 7),
@@ -636,8 +780,20 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
 
   Widget _toolDiamRow(ColorScheme cs) => Row(
         children: [
-          _fieldLabel('Tool diameter', cs),
-          const Spacer(),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel('Tool diameter', cs),
+                const SizedBox(height: 2),
+                Text(
+                  'Diameter of the cutting bit at its widest point',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
           _numericField(_toolDiamCtrl, width: 72, decimal: true, cs: cs,
               isValid: _parsePositiveDouble(_toolDiamCtrl) != null),
           const SizedBox(width: 6),
@@ -647,12 +803,70 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
 
   Widget _bladeAngleRow(ColorScheme cs) => Row(
         children: [
-          _fieldLabel('Blade angle', cs),
-          const Spacer(),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel('Included angle', cs),
+                const SizedBox(height: 2),
+                Text(
+                  'Between the two cutting edges',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
           _numericField(_bladeAngleCtrl, width: 72, decimal: true, cs: cs,
               isValid: _parsePositiveDouble(_bladeAngleCtrl) != null),
           const SizedBox(width: 6),
           Text('°', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+        ],
+      );
+
+  Widget _safeHeightRow(ColorScheme cs) => Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel('Safe height', cs),
+                const SizedBox(height: 2),
+                Text(
+                  'Z clearance for rapid moves above the material',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _numericField(_safeHeightCtrl, width: 72, decimal: true, cs: cs,
+              isValid: _parsePositiveDouble(_safeHeightCtrl) != null),
+          const SizedBox(width: 6),
+          Text('mm', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+        ],
+      );
+
+  Widget _travelFeedRateRow(ColorScheme cs) => Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fieldLabel('Travel feed rate', cs),
+                const SizedBox(height: 2),
+                Text(
+                  'Speed for non-cutting moves (retract / travel / plunge)',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          _numericField(_travelFeedRateCtrl, width: 72, decimal: true, cs: cs,
+              isValid: _parsePositiveDouble(_travelFeedRateCtrl) != null),
+          const SizedBox(width: 6),
+          Text('mm/s', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         ],
       );
 
