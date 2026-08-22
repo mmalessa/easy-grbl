@@ -6,6 +6,7 @@ import '../models/machine_settings.dart';
 import '../models/focus_test_config.dart';
 import '../models/kerf_test_config.dart';
 import '../models/spot_test_config.dart';
+import '../models/test_session.dart';
 import 'layers_panel.dart';
 import 'layer_settings_panel.dart';
 import 'panel_section_header.dart';
@@ -21,23 +22,12 @@ class LeftPanel extends StatefulWidget {
   final void Function(SvgNode) onSelect;
   final void Function(SvgNode, LayerSettings) onSettingsChanged;
 
-  // Focus Test
-  final bool showFocusTest;
-  final FocusTestConfig focusTestConfig;
+  // At most one template test (Focus/Kerf/Spot) is active at a time.
+  final TestSession testSession;
   final ValueChanged<FocusTestConfig> onFocusTestChanged;
-  final VoidCallback onFocusTestClose;
-
-  // Kerf Test
-  final bool showKerfTest;
-  final KerfTestConfig kerfTestConfig;
   final ValueChanged<KerfTestConfig> onKerfTestChanged;
-  final VoidCallback onKerfTestClose;
-
-  // Spot Size Test
-  final bool showSpotTest;
-  final SpotTestConfig spotTestConfig;
   final ValueChanged<SpotTestConfig> onSpotTestChanged;
-  final VoidCallback onSpotTestClose;
+  final VoidCallback onCloseTest;
 
   const LeftPanel({
     super.key,
@@ -47,18 +37,11 @@ class LeftPanel extends StatefulWidget {
     required this.onToggleEnabled,
     required this.onSelect,
     required this.onSettingsChanged,
-    this.showFocusTest = false,
-    required this.focusTestConfig,
+    required this.testSession,
     required this.onFocusTestChanged,
-    required this.onFocusTestClose,
-    this.showKerfTest = false,
-    required this.kerfTestConfig,
     required this.onKerfTestChanged,
-    required this.onKerfTestClose,
-    this.showSpotTest = false,
-    required this.spotTestConfig,
     required this.onSpotTestChanged,
-    required this.onSpotTestClose,
+    required this.onCloseTest,
   });
 
   @override
@@ -99,101 +82,108 @@ class _LeftPanelState extends State<LeftPanel> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.showFocusTest)
-            Expanded(
-              child: FocusTestPanel(
-                config: widget.focusTestConfig,
-                onChanged: widget.onFocusTestChanged,
-                onClose: widget.onFocusTestClose,
+          switch (widget.testSession) {
+            FocusTestSession(:final config) => Expanded(
+                child: FocusTestPanel(
+                  config: config,
+                  onChanged: widget.onFocusTestChanged,
+                  onClose: widget.onCloseTest,
+                ),
               ),
-            )
-          else if (widget.showKerfTest)
-            Expanded(
-              child: KerfTestPanel(
-                config: widget.kerfTestConfig,
-                onChanged: widget.onKerfTestChanged,
-                onClose: widget.onKerfTestClose,
+            KerfTestSession(:final config) => Expanded(
+                child: KerfTestPanel(
+                  config: config,
+                  onChanged: widget.onKerfTestChanged,
+                  onClose: widget.onCloseTest,
+                ),
               ),
-            )
-          else if (widget.showSpotTest)
-            Expanded(
-              child: SpotTestPanel(
-                config: widget.spotTestConfig,
-                spotSize: widget.machineSettings.laserSpotSize,
-                onChanged: widget.onSpotTestChanged,
-                onClose: widget.onSpotTestClose,
+            SpotTestSession(:final config) => Expanded(
+                child: SpotTestPanel(
+                  config: config,
+                  spotSize: widget.machineSettings.laserSpotSize,
+                  onChanged: widget.onSpotTestChanged,
+                  onClose: widget.onCloseTest,
+                ),
               ),
-            )
-          else ...[
-            // ── Layers & Objects ────────────────────────────────────────
-            PanelSectionHeader(
-              title: 'Layers & Objects',
-              icon: Icons.layers_outlined,
-            ),
-            Expanded(
-              child: widget.document == null
-                  ? Center(
-                      child: Text(
-                        'No file loaded',
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)))
-                  : LayersPanel(
-                      roots: widget.document!.roots,
-                      onToggleEnabled: widget.onToggleEnabled,
-                      onSelect: widget.onSelect,
-                    ),
-            ),
-
-            // ── Layer Settings (shown when a node is selected) ──────────
-            if (hasSettings) ...[
-              if (!_settingsCollapsed) _DragHandle(onDrag: _onSettingsDrag),
-              const Divider(height: 1, thickness: 1),
-              PanelSectionHeader(
-                title: 'Layer Settings',
-                icon: Icons.tune_outlined,
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
+            NoTestSession() => Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    GestureDetector(
-                      onTap: () => setState(
-                          () => _settingsCollapsed = !_settingsCollapsed),
-                      child: Icon(
-                        _settingsCollapsed
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                        size: 14,
+                    // ── Layers & Objects ────────────────────────────────
+                    PanelSectionHeader(
+                      title: 'Layers & Objects',
+                      icon: Icons.layers_outlined,
+                    ),
+                    Expanded(
+                      child: widget.document == null
+                          ? Center(
+                              child: Text(
+                                'No file loaded',
+                                style: TextStyle(
+                                    color: cs.onSurfaceVariant, fontSize: 12)))
+                          : LayersPanel(
+                              roots: widget.document!.roots,
+                              onToggleEnabled: widget.onToggleEnabled,
+                              onSelect: widget.onSelect,
+                            ),
+                    ),
+
+                    // ── Layer Settings (shown when a node is selected) ──
+                    if (hasSettings) ...[
+                      if (!_settingsCollapsed)
+                        _DragHandle(onDrag: _onSettingsDrag),
+                      const Divider(height: 1, thickness: 1),
+                      PanelSectionHeader(
+                        title: 'Layer Settings',
+                        icon: Icons.tune_outlined,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            GestureDetector(
+                              onTap: () => setState(() =>
+                                  _settingsCollapsed = !_settingsCollapsed),
+                              child: Icon(
+                                _settingsCollapsed
+                                    ? Icons.expand_less
+                                    : Icons.expand_more,
+                                size: 14,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            GestureDetector(
+                              onTap: () =>
+                                  widget.onSelect(widget.selectedNode!),
+                              child: const Icon(Icons.close, size: 14),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 2),
-                    GestureDetector(
-                      onTap: () => widget.onSelect(widget.selectedNode!),
-                      child: const Icon(Icons.close, size: 14),
-                    ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeInOut,
+                        child: _settingsCollapsed
+                            ? const SizedBox.shrink()
+                            : ConstrainedBox(
+                                key: _settingsBoxKey,
+                                constraints: BoxConstraints(
+                                  maxHeight: _settingsHeight ?? double.infinity,
+                                ),
+                                child: SingleChildScrollView(
+                                  child: LayerSettingsPanel(
+                                    key: ValueKey(widget.selectedNode!.id),
+                                    node: widget.selectedNode!,
+                                    machineSettings: widget.machineSettings,
+                                    onChanged: (s) => widget.onSettingsChanged(
+                                        widget.selectedNode!, s),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ],
                   ],
                 ),
               ),
-              AnimatedSize(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeInOut,
-                child: _settingsCollapsed
-                    ? const SizedBox.shrink()
-                    : ConstrainedBox(
-                        key: _settingsBoxKey,
-                        constraints: BoxConstraints(
-                          maxHeight: _settingsHeight ?? double.infinity,
-                        ),
-                        child: SingleChildScrollView(
-                          child: LayerSettingsPanel(
-                            key: ValueKey(widget.selectedNode!.id),
-                            node: widget.selectedNode!,
-                            machineSettings: widget.machineSettings,
-                            onChanged: (s) =>
-                                widget.onSettingsChanged(widget.selectedNode!, s),
-                          ),
-                        ),
-                      ),
-              ),
-            ],
-          ],
+          },
         ],
       ),
     );

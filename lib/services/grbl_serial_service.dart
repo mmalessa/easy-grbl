@@ -4,6 +4,7 @@ import 'package:flutter_libserialport/flutter_libserialport.dart';
 import '../models/svg_document.dart';
 import '../models/machine_settings.dart';
 import 'grbl_service.dart';
+import 'gcode_format.dart';
 import 'gcode_generator.dart';
 
 class GrblSerialService extends GrblService {
@@ -281,13 +282,7 @@ class GrblSerialService extends GrblService {
     _jobCancelled = false;
     _jobPaused = false;
     final gcode = GcodeGenerator.generate(document, '', machineSettings);
-    final lines = gcode
-        .split('\n')
-        .map((l) => l.contains(';')
-            ? l.substring(0, l.indexOf(';')).trim()
-            : l.trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
+    final lines = stripGcodeComments(gcode);
     if (lines.isNotEmpty) _streamLines(lines);
   }
 

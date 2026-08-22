@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/machine_settings.dart';
 import '../models/operation_type.dart';
 import '../services/grbl_service.dart';
+import 'icon_stepper_button.dart';
 
 const _kBaudRates = [9600, 19200, 38400, 57600, 115200, 230400, 250000];
 const _kSpeedMin = 100;
@@ -505,6 +506,79 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
         }).toList(),
       );
 
+  Widget _opTypeHeader(OperationType type, ColorScheme cs,
+          {required double bottomPadding}) =>
+      Padding(
+        padding: EdgeInsets.only(bottom: bottomPadding),
+        child: Text(
+          type.label,
+          style: TextStyle(
+              color: type.color,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5),
+        ),
+      );
+
+  /// A -/+ stepper around a compact [TextField] — the shape shared by the
+  /// spindle/feed fields in [_millDefaultRow] and the speed field in
+  /// [_defaultRow]. [onDecrement]/[onIncrement] own the actual parse/clamp/
+  /// format logic (it differs per field: int vs. double, different steps).
+  Widget _steppedNumberField({
+    required TextEditingController ctrl,
+    required Color color,
+    required bool valid,
+    required double width,
+    required bool decimal,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+    required ColorScheme cs,
+    String? unit,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconStepperButton(
+          icon: Icons.remove,
+          color: color,
+          width: 26,
+          height: 32,
+          activeAlpha: 0.15,
+          onTap: onDecrement,
+        ),
+        const SizedBox(width: 2),
+        SizedBox(
+          width: width,
+          child: TextField(
+            controller: ctrl,
+            style: TextStyle(
+                color: valid ? cs.onSurface : cs.error,
+                fontSize: 12,
+                fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+            decoration: _compactFieldDecoration(valid, cs),
+            keyboardType: decimal
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.number,
+          ),
+        ),
+        const SizedBox(width: 2),
+        IconStepperButton(
+          icon: Icons.add,
+          color: color,
+          width: 26,
+          height: 32,
+          activeAlpha: 0.15,
+          onTap: onIncrement,
+        ),
+        if (unit != null) ...[
+          const SizedBox(width: 4),
+          Text(unit, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
+        ],
+      ],
+    );
+  }
+
   Widget _millDefaultRow(OperationType type,
       TextEditingController spindleCtrl, TextEditingController feedCtrl,
       ColorScheme cs) {
@@ -514,77 +588,54 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            type.label,
-            style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5),
-          ),
-        ),
+        _opTypeHeader(type, cs, bottomPadding: 6),
         Row(
           children: [
             Text('Spindle speed',
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
             const SizedBox(width: 4),
-            _stepBtn(Icons.remove, color, () {
-              final v = int.tryParse(spindleCtrl.text.trim()) ?? 1000;
-              spindleCtrl.text = '${(v - 1000).clamp(100, 1000000)}';
-            }),
-            const SizedBox(width: 2),
-            SizedBox(
+            _steppedNumberField(
+              ctrl: spindleCtrl,
+              color: color,
+              valid: spindleOk,
               width: 60,
-              child: TextField(
-                controller: spindleCtrl,
-                style: TextStyle(
-                    color: spindleOk ? cs.onSurface : cs.error,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-                decoration: _compactFieldDecoration(spindleOk, cs),
-                keyboardType: TextInputType.number,
-              ),
+              decimal: false,
+              cs: cs,
+              unit: 'RPM',
+              onDecrement: () {
+                final v = int.tryParse(spindleCtrl.text.trim()) ?? 1000;
+                spindleCtrl.text = '${(v - 1000).clamp(100, 1000000)}';
+              },
+              onIncrement: () {
+                final v = int.tryParse(spindleCtrl.text.trim()) ?? 1000;
+                spindleCtrl.text = '${(v + 1000).clamp(100, 1000000)}';
+              },
             ),
-            const SizedBox(width: 2),
-            _stepBtn(Icons.add, color, () {
-              final v = int.tryParse(spindleCtrl.text.trim()) ?? 1000;
-              spindleCtrl.text = '${(v + 1000).clamp(100, 1000000)}';
-            }),
-            const SizedBox(width: 4),
-            Text('RPM', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
             const Spacer(),
             Text('Feed rate',
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
             const SizedBox(width: 4),
-            _stepBtn(Icons.remove, color, () {
-              final v = double.tryParse(feedCtrl.text.replaceAll(',', '.')) ?? 5.0;
-              feedCtrl.text = ((v - 5.0).clamp(0.1, 10000.0)).toStringAsFixed(1);
-            }),
-            const SizedBox(width: 2),
-            SizedBox(
+            _steppedNumberField(
+              ctrl: feedCtrl,
+              color: color,
+              valid: feedOk,
               width: 52,
-              child: TextField(
-                controller: feedCtrl,
-                style: TextStyle(
-                    color: feedOk ? cs.onSurface : cs.error,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-                decoration: _compactFieldDecoration(feedOk, cs),
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-              ),
+              decimal: true,
+              cs: cs,
+              unit: 'mm/s',
+              onDecrement: () {
+                final v =
+                    double.tryParse(feedCtrl.text.replaceAll(',', '.')) ?? 5.0;
+                feedCtrl.text =
+                    ((v - 5.0).clamp(0.1, 10000.0)).toStringAsFixed(1);
+              },
+              onIncrement: () {
+                final v =
+                    double.tryParse(feedCtrl.text.replaceAll(',', '.')) ?? 5.0;
+                feedCtrl.text =
+                    ((v + 5.0).clamp(0.1, 10000.0)).toStringAsFixed(1);
+              },
             ),
-            const SizedBox(width: 2),
-            _stepBtn(Icons.add, color, () {
-              final v = double.tryParse(feedCtrl.text.replaceAll(',', '.')) ?? 5.0;
-              feedCtrl.text = ((v + 5.0).clamp(0.1, 10000.0)).toStringAsFixed(1);
-            }),
-            const SizedBox(width: 4),
-            Text('mm/s', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
           ],
         ),
       ],
@@ -620,17 +671,7 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(bottom: 4),
-          child: Text(
-            type.label,
-            style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.5),
-          ),
-        ),
+        _opTypeHeader(type, cs, bottomPadding: 4),
         Row(
           children: [
             Text('Power',
@@ -674,200 +715,118 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
             Text('Speed',
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 11)),
             const SizedBox(width: 4),
-            _stepBtn(Icons.remove, color, () {
-              final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
-              speedCtrl.text =
-                  '${(v - 100).clamp(_kSpeedMin, _kSpeedMax)}';
-            }),
-            const SizedBox(width: 2),
-            SizedBox(
+            _steppedNumberField(
+              ctrl: speedCtrl,
+              color: color,
+              valid: valid,
               width: 56,
-              child: TextField(
-                controller: speedCtrl,
-                style: TextStyle(
-                    color: valid ? cs.onSurface : cs.error,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600),
-                textAlign: TextAlign.center,
-                decoration: InputDecoration(
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 4, vertical: 5),
-                  filled: true,
-                  fillColor: cs.surfaceContainerHighest,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                        color: valid ? cs.outline : cs.error),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                        color: valid ? cs.outline : cs.error),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
-                    borderSide: BorderSide(
-                        color: valid ? cs.primary : cs.error),
-                  ),
-                ),
-                keyboardType: TextInputType.number,
-              ),
+              decimal: false,
+              cs: cs,
+              onDecrement: () {
+                final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
+                speedCtrl.text =
+                    '${(v - 100).clamp(_kSpeedMin, _kSpeedMax)}';
+              },
+              onIncrement: () {
+                final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
+                speedCtrl.text =
+                    '${(v + 100).clamp(_kSpeedMin, _kSpeedMax)}';
+              },
             ),
-            const SizedBox(width: 2),
-            _stepBtn(Icons.add, color, () {
-              final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
-              speedCtrl.text =
-                  '${(v + 100).clamp(_kSpeedMin, _kSpeedMax)}';
-            }),
           ],
         ),
       ],
     );
   }
 
-  Widget _sMaxRow(ColorScheme cs) => Row(
-        children: [
-          Expanded(
+  /// A field-label (optionally with a hint subtitle, in which case the
+  /// label column expands) + numeric field + optional trailing unit —
+  /// the shape shared by every plain numeric setting row in this dialog.
+  Widget _numericSettingRow(
+    String label,
+    TextEditingController ctrl, {
+    required ColorScheme cs,
+    required double width,
+    required bool decimal,
+    String? hint,
+    String? unit,
+    bool isValid = true,
+  }) {
+    final labelWidget = hint == null
+        ? _fieldLabel(label, cs)
+        : Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _fieldLabel('Max laser power (S max)', cs),
+                _fieldLabel(label, cs),
                 const SizedBox(height: 2),
-                Text(
-                  'Must match parameter \$30 in GRBL controller',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
-                ),
+                Text(hint,
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10)),
               ],
             ),
-          ),
-          const SizedBox(width: 12),
-          _numericField(_sMaxCtrl, width: 70, decimal: false, cs: cs),
+          );
+    return Row(
+      children: [
+        labelWidget,
+        hint == null ? const Spacer() : const SizedBox(width: 12),
+        _numericField(ctrl, width: width, decimal: decimal, cs: cs, isValid: isValid),
+        if (unit != null) ...[
+          const SizedBox(width: 6),
+          Text(unit, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         ],
+      ],
+    );
+  }
+
+  Widget _sMaxRow(ColorScheme cs) => _numericSettingRow(
+        'Max laser power (S max)', _sMaxCtrl,
+        cs: cs, width: 70, decimal: false,
+        hint: 'Must match parameter \$30 in GRBL controller',
       );
 
-  Widget _spotSizeRow(ColorScheme cs) => Row(
-        children: [
-          _fieldLabel('Laser spot size', cs),
-          const Spacer(),
-          _numericField(_spotCtrl, width: 64, decimal: true, cs: cs),
-          const SizedBox(width: 6),
-          Text('mm', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+  Widget _spotSizeRow(ColorScheme cs) => _numericSettingRow(
+        'Laser spot size', _spotCtrl,
+        cs: cs, width: 64, decimal: true, unit: 'mm',
       );
 
-  Widget _maxSpindleSpeedRow(ColorScheme cs) => Row(
-        children: [
-          _fieldLabel('Max spindle speed', cs),
-          const Spacer(),
-          _numericField(_maxSpindleSpeedCtrl, width: 80, decimal: false, cs: cs,
-              isValid: _parsePositiveInt(_maxSpindleSpeedCtrl) != null),
-          const SizedBox(width: 6),
-          Text('RPM', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+  Widget _maxSpindleSpeedRow(ColorScheme cs) => _numericSettingRow(
+        'Max spindle speed', _maxSpindleSpeedCtrl,
+        cs: cs, width: 80, decimal: false, unit: 'RPM',
+        isValid: _parsePositiveInt(_maxSpindleSpeedCtrl) != null,
       );
 
-  Widget _maxFeedRateRow(ColorScheme cs) => Row(
-        children: [
-          _fieldLabel('Max feed rate', cs),
-          const Spacer(),
-          _numericField(_maxFeedRateCtrl, width: 80, decimal: true, cs: cs,
-              isValid: _parsePositiveDouble(_maxFeedRateCtrl) != null),
-          const SizedBox(width: 6),
-          Text('mm/s', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+  Widget _maxFeedRateRow(ColorScheme cs) => _numericSettingRow(
+        'Max feed rate', _maxFeedRateCtrl,
+        cs: cs, width: 80, decimal: true, unit: 'mm/s',
+        isValid: _parsePositiveDouble(_maxFeedRateCtrl) != null,
       );
 
-  Widget _toolDiamRow(ColorScheme cs) => Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _fieldLabel('Tool diameter', cs),
-                const SizedBox(height: 2),
-                Text(
-                  'Diameter of the cutting bit at its widest point',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _numericField(_toolDiamCtrl, width: 72, decimal: true, cs: cs,
-              isValid: _parsePositiveDouble(_toolDiamCtrl) != null),
-          const SizedBox(width: 6),
-          Text('mm', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+  Widget _toolDiamRow(ColorScheme cs) => _numericSettingRow(
+        'Tool diameter', _toolDiamCtrl,
+        cs: cs, width: 72, decimal: true, unit: 'mm',
+        hint: 'Diameter of the cutting bit at its widest point',
+        isValid: _parsePositiveDouble(_toolDiamCtrl) != null,
       );
 
-  Widget _bladeAngleRow(ColorScheme cs) => Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _fieldLabel('Included angle', cs),
-                const SizedBox(height: 2),
-                Text(
-                  'Between the two cutting edges',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _numericField(_bladeAngleCtrl, width: 72, decimal: true, cs: cs,
-              isValid: _parsePositiveDouble(_bladeAngleCtrl) != null),
-          const SizedBox(width: 6),
-          Text('°', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+  Widget _bladeAngleRow(ColorScheme cs) => _numericSettingRow(
+        'Included angle', _bladeAngleCtrl,
+        cs: cs, width: 72, decimal: true, unit: '°',
+        hint: 'Between the two cutting edges',
+        isValid: _parsePositiveDouble(_bladeAngleCtrl) != null,
       );
 
-  Widget _safeHeightRow(ColorScheme cs) => Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _fieldLabel('Safe height', cs),
-                const SizedBox(height: 2),
-                Text(
-                  'Z clearance for rapid moves above the material',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _numericField(_safeHeightCtrl, width: 72, decimal: true, cs: cs,
-              isValid: _parsePositiveDouble(_safeHeightCtrl) != null),
-          const SizedBox(width: 6),
-          Text('mm', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+  Widget _safeHeightRow(ColorScheme cs) => _numericSettingRow(
+        'Safe height', _safeHeightCtrl,
+        cs: cs, width: 72, decimal: true, unit: 'mm',
+        hint: 'Z clearance for rapid moves above the material',
+        isValid: _parsePositiveDouble(_safeHeightCtrl) != null,
       );
 
-  Widget _travelFeedRateRow(ColorScheme cs) => Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _fieldLabel('Travel feed rate', cs),
-                const SizedBox(height: 2),
-                Text(
-                  'Speed for non-cutting moves (retract / travel / plunge)',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          _numericField(_travelFeedRateCtrl, width: 72, decimal: true, cs: cs,
-              isValid: _parsePositiveDouble(_travelFeedRateCtrl) != null),
-          const SizedBox(width: 6),
-          Text('mm/s', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-        ],
+  Widget _travelFeedRateRow(ColorScheme cs) => _numericSettingRow(
+        'Travel feed rate', _travelFeedRateCtrl,
+        cs: cs, width: 72, decimal: true, unit: 'mm/s',
+        hint: 'Speed for non-cutting moves (retract / travel / plunge)',
+        isValid: _parsePositiveDouble(_travelFeedRateCtrl) != null,
       );
 
   Widget _numericField(TextEditingController ctrl,
@@ -904,20 +863,6 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
           keyboardType: decimal
               ? const TextInputType.numberWithOptions(decimal: true)
               : TextInputType.number,
-        ),
-      );
-
-  Widget _stepBtn(IconData icon, Color color, VoidCallback onTap) => SizedBox(
-        width: 26,
-        height: 32,
-        child: Material(
-          color: color.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(4),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Icon(icon, size: 13, color: color),
-          ),
         ),
       );
 

@@ -4,6 +4,7 @@ import '../models/svg_node_type.dart';
 import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import '../models/operation_type.dart';
+import 'icon_stepper_button.dart';
 
 class LayerSettingsPanel extends StatefulWidget {
   final SvgNode node;
@@ -536,7 +537,8 @@ class _DepthCounter extends StatelessWidget {
     final valid = _isValid;
     return Row(
       children: [
-        _btn(Icons.remove, () => _nudge(-step), cs),
+        IconStepperButton(
+            icon: Icons.remove, onTap: () => _nudge(-step), color: color),
         Expanded(
           child: SizedBox(
             height: 26,
@@ -571,24 +573,11 @@ class _DepthCounter extends StatelessWidget {
             ),
           ),
         ),
-        _btn(Icons.add, () => _nudge(step), cs),
+        IconStepperButton(
+            icon: Icons.add, onTap: () => _nudge(step), color: color),
       ],
     );
   }
-
-  Widget _btn(IconData icon, VoidCallback onTap, ColorScheme cs) => SizedBox(
-        width: 28,
-        height: 26,
-        child: Material(
-          color: color.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(4),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Icon(icon, size: 13, color: color),
-          ),
-        ),
-      );
 }
 
 // ---------------------------------------------------------------------------
@@ -616,7 +605,12 @@ class _LinesPerMmCounter extends StatelessWidget {
     final step = _step(value);
     return Row(
       children: [
-        _btn(Icons.remove, value > 0.5 ? () => onChanged((value - step).clamp(0.5, 100.0)) : null, cs),
+        IconStepperButton(
+            icon: Icons.remove,
+            onTap: value > 0.5
+                ? () => onChanged((value - step).clamp(0.5, 100.0))
+                : null,
+            color: color),
         Expanded(
           child: Text(
             value == value.roundToDouble()
@@ -626,7 +620,12 @@ class _LinesPerMmCounter extends StatelessWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ),
-        _btn(Icons.add, value < 100 ? () => onChanged((value + step).clamp(0.5, 100.0)) : null, cs),
+        IconStepperButton(
+            icon: Icons.add,
+            onTap: value < 100
+                ? () => onChanged((value + step).clamp(0.5, 100.0))
+                : null,
+            color: color),
         const SizedBox(width: 6),
         SizedBox(
           width: 36,
@@ -653,22 +652,6 @@ class _LinesPerMmCounter extends StatelessWidget {
       ],
     );
   }
-
-  Widget _btn(IconData icon, VoidCallback? onTap, ColorScheme cs) => SizedBox(
-        width: 28,
-        height: 26,
-        child: Material(
-          color: onTap != null ? color.withValues(alpha: 0.12) : cs.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(4),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Icon(icon,
-                size: 13,
-                color: onTap != null ? color : cs.onSurfaceVariant),
-          ),
-        ),
-      );
 }
 
 // ---------------------------------------------------------------------------
@@ -690,11 +673,14 @@ class _SpeedCounter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        _btn(Icons.remove,
-            value > _min ? () => onChanged((value - _step).clamp(_min, _max)) : null, cs),
+        IconStepperButton(
+            icon: Icons.remove,
+            onTap: value > _min
+                ? () => onChanged((value - _step).clamp(_min, _max))
+                : null,
+            color: color),
         Expanded(
           child: Text(
             value.toStringAsFixed(1),
@@ -702,27 +688,15 @@ class _SpeedCounter extends StatelessWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ),
-        _btn(Icons.add,
-            value < _max ? () => onChanged((value + _step).clamp(_min, _max)) : null, cs),
+        IconStepperButton(
+            icon: Icons.add,
+            onTap: value < _max
+                ? () => onChanged((value + _step).clamp(_min, _max))
+                : null,
+            color: color),
       ],
     );
   }
-
-  Widget _btn(IconData icon, VoidCallback? onTap, ColorScheme cs) => SizedBox(
-        width: 28,
-        height: 26,
-        child: Material(
-          color: onTap != null ? color.withValues(alpha: 0.12) : cs.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(4),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Icon(icon,
-                size: 13,
-                color: onTap != null ? color : cs.onSurfaceVariant),
-          ),
-        ),
-      );
 }
 
 // ---------------------------------------------------------------------------
@@ -746,11 +720,14 @@ class _Counter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
-        _btn(Icons.remove,
-            value > min ? () => onChanged((value - step).clamp(min, max)) : null, cs),
+        IconStepperButton(
+            icon: Icons.remove,
+            onTap: value > min
+                ? () => onChanged((value - step).clamp(min, max))
+                : null,
+            color: accentColor),
         Expanded(
           child: Text(
             value.toString(),
@@ -758,29 +735,15 @@ class _Counter extends StatelessWidget {
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
         ),
-        _btn(Icons.add,
-            value < max ? () => onChanged((value + step).clamp(min, max)) : null, cs),
+        IconStepperButton(
+            icon: Icons.add,
+            onTap: value < max
+                ? () => onChanged((value + step).clamp(min, max))
+                : null,
+            color: accentColor),
       ],
     );
   }
-
-  Widget _btn(IconData icon, VoidCallback? onTap, ColorScheme cs) => SizedBox(
-        width: 28,
-        height: 26,
-        child: Material(
-          color: onTap != null
-              ? accentColor.withValues(alpha: 0.12)
-              : cs.surfaceContainerLowest,
-          borderRadius: BorderRadius.circular(4),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(4),
-            child: Icon(icon,
-                size: 13,
-                color: onTap != null ? accentColor : cs.onSurfaceVariant),
-          ),
-        ),
-      );
 }
 
 // ---------------------------------------------------------------------------

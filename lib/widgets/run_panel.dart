@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/svg_document.dart';
 import '../services/grbl_service.dart';
+import '../services/job_step_counter.dart';
 
 class RunPanel extends StatelessWidget {
   final SvgDocument? document;
@@ -38,13 +39,12 @@ class RunPanel extends StatelessWidget {
     required IconData icon,
     required Color color,
     required VoidCallback onTap,
+    required ColorScheme cs,
     String? tooltip,
     bool enabled = true,
-    ColorScheme? cs,
   }) {
-    final scheme = cs ?? (throw StateError('_iconBtn requires cs'));
     final widget = Material(
-      color: enabled ? scheme.surfaceContainerLow : scheme.surfaceContainerLowest,
+      color: enabled ? cs.surfaceContainerLow : cs.surfaceContainerLowest,
       borderRadius: BorderRadius.circular(5),
       child: InkWell(
         onTap: enabled ? onTap : null,
@@ -53,7 +53,7 @@ class RunPanel extends StatelessWidget {
           width: 38,
           height: 40,
           child: Icon(icon,
-              size: 18, color: enabled ? color : scheme.onSurfaceVariant),
+              size: 18, color: enabled ? color : cs.onSurfaceVariant),
         ),
       ),
     );
@@ -70,7 +70,7 @@ class RunPanel extends StatelessWidget {
 
   Widget _idle(BuildContext context, ColorScheme cs) {
     final roots = document!.roots;
-    final (:paths, :passes) = service.countJobSteps(roots);
+    final (:paths, :passes) = countJobSteps(roots);
     final canRun = paths > 0 && service.isIdle;
 
     final estimateSec = (passes * 5).clamp(1, 9999);

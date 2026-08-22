@@ -1,13 +1,13 @@
 import 'dart:ui';
 import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
-import '../models/svg_node.dart';
 import '../models/operation_type.dart';
 import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import 'affine.dart';
 import 'gcode_generator.dart';
 import 'path_offset.dart';
+import 'svg_node_walker.dart';
 
 /// Pre-baked toolpath for canvas rendering. All coordinates are in SVG space.
 class ToolpathData {
@@ -48,8 +48,22 @@ ToolpathData? computeToolpath(SvgDocument doc,
     lastPos = svgPts.last;
   }
 
-  _walkNodes(doc.roots, SvgAffine.identity, true, null, null, machineSettings,
-      addContour);
+  walkSvgNodes(doc.roots, (node, transform, effectiveOp, effectiveSettings) {
+    if (!isActiveOp(node.pathData, effectiveOp)) return;
+    final op = effectiveOp!;
+    if (op == OperationType.fill) {
+      _sampleFill(node.pathData!, transform, effectiveSettings,
+          machineSettings.laserSpotSize, addContour);
+    } else {
+      final offsetDelta = op == OperationType.cut
+          ? machineSettings.cutOffsetDeltaFor(effectiveSettings)
+          : 0.0;
+      for (var pass = 0; pass < effectiveSettings.passes; pass++) {
+        _samplePath(node.pathData!, transform, op.color, addContour,
+            offsetDeltaMm: offsetDelta);
+      }
+    }
+  });
 
   if (!hasAny) return null;
 
@@ -61,52 +75,6 @@ ToolpathData? computeToolpath(SvgDocument doc,
 
 // Sample spacing in mm — coarser than G-code generation for rendering speed.
 const _step = 0.5;
-
-void _walkNodes(
-  List<SvgNode> nodes,
-  SvgAffine parentM,
-  bool parentEnabled,
-  OperationType? inheritedOp,
-  LayerSettings? inheritedSettings,
-  MachineSettings machineSettings,
-  void Function(List<Offset>, Color) addContour,
-) {
-  for (final node in nodes) {
-    if (!node.enabled || !parentEnabled) continue;
-    final m = parentM.multiply(SvgAffine.fromSvgString(node.transform));
-    final ownOp = node.settings.operationType;
-    final eff = ownOp != OperationType.skip ? ownOp : inheritedOp;
-    final effSettings =
-        ownOp != OperationType.skip ? node.settings : (inheritedSettings ?? node.settings);
-    if (node.pathData != null && eff != null && eff != OperationType.skip) {
-      if (eff == OperationType.fill) {
-        _sampleFill(node.pathData!, m, effSettings, machineSettings.laserSpotSize, addContour);
-      } else {
-        final offsetDelta = eff == OperationType.cut
-            ? _cutOffsetDelta(machineSettings, effSettings)
-            : 0.0;
-        for (var pass = 0; pass < effSettings.passes; pass++) {
-          _samplePath(node.pathData!, m, eff.color, addContour,
-              offsetDeltaMm: offsetDelta);
-        }
-      }
-    }
-    _walkNodes(node.children, m, node.enabled, eff,
-        ownOp != OperationType.skip ? node.settings : inheritedSettings,
-        machineSettings, addContour);
-  }
-}
-
-/// Signed XY offset (mm) for a Cut layer's toolpath: outer grows, inner
-/// shrinks, by the tool/spot's effective diameter at the layer's cut depth.
-double _cutOffsetDelta(MachineSettings machineSettings, LayerSettings s) {
-  final effDiam = machineSettings.effectiveDiameterAt(s.cutDepthMm);
-  return switch (s.cutSide) {
-    CutSide.line => 0.0,
-    CutSide.outer => effDiam / 2,
-    CutSide.inner => -effDiam / 2,
-  };
-}
 
 void _samplePath(
   String pathData,

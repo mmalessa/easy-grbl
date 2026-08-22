@@ -1,0 +1,17 @@
+import '../models/svg_node.dart';
+import 'svg_node_walker.dart';
+
+/// Counts enabled non-skip paths/passes for the UI job summary. Pure domain
+/// logic over the SVG node tree — doesn't depend on any machine/service
+/// state, so it lives as a free function rather than on [GrblService].
+({int paths, int passes}) countJobSteps(List<SvgNode> roots) {
+  var paths = 0;
+  var passes = 0;
+  walkSvgNodes(roots, (node, transform, effectiveOp, effectiveSettings) {
+    if (isActiveOp(node.pathData, effectiveOp)) {
+      paths++;
+      passes += effectivePassesFor(effectiveOp!, effectiveSettings);
+    }
+  });
+  return (paths: paths, passes: passes);
+}

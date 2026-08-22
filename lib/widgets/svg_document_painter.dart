@@ -4,6 +4,7 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import '../services/svg_node_walker.dart';
 import '../services/svg_transform.dart';
 import '../services/toolpath.dart';
 
@@ -238,9 +239,13 @@ class SvgDocumentPainter extends CustomPainter {
     final visible = parentEnabled && node.enabled;
     final selected = inSelectedScope || node.selected;
 
-    // Resolve effective operation type (own overrides inherited)
-    final ownOp = node.settings.operationType;
-    final effectiveOp = ownOp != OperationType.skip ? ownOp : inheritedOp;
+    // Resolve effective operation type (own overrides inherited) — shared
+    // with the other SVG-tree walkers (see svg_node_walker.dart), though
+    // this painter keeps its own traversal since positioning goes through
+    // the canvas's own transform stack (applySvgTransform below) rather
+    // than an explicit accumulated matrix, and it needs to keep walking
+    // disabled subtrees (to render them dimmed) instead of pruning them.
+    final effectiveOp = resolveEffectiveOp(node, inheritedOp);
 
     if (node.transform != null && node.transform!.isNotEmpty) {
       canvas.save();

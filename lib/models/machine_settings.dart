@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'layer_settings.dart';
 
 enum MachineType { laser, mill }
 
@@ -86,6 +87,17 @@ class MachineSettings {
     return atDepth.clamp(0.0, toolDiameter);
   }
 
+  /// Signed XY offset (mm) for a Cut layer's toolpath: outer grows, inner
+  /// shrinks, by the tool/spot's effective diameter at the layer's cut depth.
+  double cutOffsetDeltaFor(LayerSettings s) {
+    final effDiam = effectiveDiameterAt(s.cutDepthMm);
+    return switch (s.cutSide) {
+      CutSide.line => 0.0,
+      CutSide.outer => effDiam / 2,
+      CutSide.inner => -effDiam / 2,
+    };
+  }
+
   MachineSettings copyWith({
     MachineType? machineType,
     LaserMode? laserMode,
@@ -135,5 +147,73 @@ class MachineSettings {
         safeHeight: safeHeight ?? this.safeHeight,
         travelFeedRate: travelFeedRate ?? this.travelFeedRate,
         defaultBaudRate: defaultBaudRate ?? this.defaultBaudRate,
+      );
+
+  /// Serializes every field to a flat, storage-agnostic map (enums as their
+  /// [.name]) — see [SettingsService], which persists this map without
+  /// needing to know the individual field names.
+  Map<String, Object> toMap() => {
+        'machineType': machineType.name,
+        'laserMode': laserMode.name,
+        'sMax': sMax,
+        'laserSpotSize': laserSpotSize,
+        'maxSpindleSpeed': maxSpindleSpeed,
+        'maxFeedRate': maxFeedRate,
+        'toolDiameter': toolDiameter,
+        'bladeAngle': bladeAngle,
+        'engravePower': engravePower,
+        'engraveSpeed': engraveSpeed,
+        'cutPower': cutPower,
+        'cutSpeed': cutSpeed,
+        'fillPower': fillPower,
+        'fillSpeed': fillSpeed,
+        'engraveSpindleSpeed': engraveSpindleSpeed,
+        'engraveFeedRate': engraveFeedRate,
+        'cutSpindleSpeed': cutSpindleSpeed,
+        'cutFeedRate': cutFeedRate,
+        'fillSpindleSpeed': fillSpindleSpeed,
+        'fillFeedRate': fillFeedRate,
+        'safeHeight': safeHeight,
+        'travelFeedRate': travelFeedRate,
+        'defaultBaudRate': defaultBaudRate,
+      };
+
+  /// Reconstructs settings from a map produced by [toMap] (or, for a fresh
+  /// install, an empty map). Missing/unrecognized entries fall back to
+  /// defaults — note these intentionally differ from this class's own
+  /// constructor defaults for [maxSpindleSpeed], [maxFeedRate] and
+  /// [toolDiameter]: the constructor's are conservative laser-era
+  /// placeholders, while these are realistic first-run Mill values (a
+  /// 24000 RPM router, 3000 mm/min feed, 1/8" bit).
+  factory MachineSettings.fromMap(Map<String, Object?> map) => MachineSettings(
+        machineType: MachineType.values.firstWhere(
+          (m) => m.name == map['machineType'],
+          orElse: () => MachineType.laser,
+        ),
+        laserMode: LaserMode.values.firstWhere(
+          (m) => m.name == map['laserMode'],
+          orElse: () => LaserMode.constant,
+        ),
+        sMax: map['sMax'] as int? ?? 1000,
+        laserSpotSize: map['laserSpotSize'] as double? ?? 0.1,
+        maxSpindleSpeed: map['maxSpindleSpeed'] as int? ?? 24000,
+        maxFeedRate: map['maxFeedRate'] as double? ?? 3000.0,
+        toolDiameter: map['toolDiameter'] as double? ?? 3.175,
+        bladeAngle: map['bladeAngle'] as double? ?? 30.0,
+        engravePower: map['engravePower'] as int? ?? 60,
+        engraveSpeed: map['engraveSpeed'] as int? ?? 3000,
+        cutPower: map['cutPower'] as int? ?? 100,
+        cutSpeed: map['cutSpeed'] as int? ?? 800,
+        fillPower: map['fillPower'] as int? ?? 80,
+        fillSpeed: map['fillSpeed'] as int? ?? 3000,
+        engraveSpindleSpeed: map['engraveSpindleSpeed'] as int? ?? 12000,
+        engraveFeedRate: map['engraveFeedRate'] as double? ?? 20.0,
+        cutSpindleSpeed: map['cutSpindleSpeed'] as int? ?? 18000,
+        cutFeedRate: map['cutFeedRate'] as double? ?? 30.0,
+        fillSpindleSpeed: map['fillSpindleSpeed'] as int? ?? 18000,
+        fillFeedRate: map['fillFeedRate'] as double? ?? 50.0,
+        safeHeight: map['safeHeight'] as double? ?? 5.0,
+        travelFeedRate: map['travelFeedRate'] as double? ?? 25.0,
+        defaultBaudRate: map['defaultBaudRate'] as int? ?? 115200,
       );
 }

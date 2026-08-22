@@ -2,6 +2,7 @@ import '../models/machine_settings.dart';
 import '../models/focus_test_config.dart';
 import '../models/kerf_test_config.dart';
 import '../models/spot_test_config.dart';
+import 'gcode_format.dart';
 
 class GcodeTemplates {
   /// Focus Test — horizontal lines at varying Z heights.
@@ -147,9 +148,9 @@ class GcodeTemplates {
         final x0 = ltr ? 0.0 : squareSize;
         final x1 = ltr ? squareSize : 0.0;
         buf
-          ..writeln('G0 X${_f(x0)} Y${_f(y)}')
+          ..writeln('G0 X${formatGcodeNumber(x0)} Y${formatGcodeNumber(y)}')
           ..writeln('${s.laserMode.gcode} S$sVal')
-          ..writeln('G1 X${_f(x1)} F${cfg.speedMmMin}')
+          ..writeln('G1 X${formatGcodeNumber(x1)} F${cfg.speedMmMin}')
           ..writeln('M5');
         y += spacing;
         ltr = !ltr;
@@ -164,6 +165,4 @@ class GcodeTemplates {
 
     return buf.toString();
   }
-
-  static String _f(double v) => v.toStringAsFixed(3);
 }

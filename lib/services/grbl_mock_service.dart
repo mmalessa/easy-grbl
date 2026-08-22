@@ -4,14 +4,15 @@ import 'dart:ui';
 import 'package:flutter/scheduler.dart';
 import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
-import '../models/svg_node.dart';
 import '../models/layer_settings.dart';
 import '../models/machine_settings.dart';
 import '../models/operation_type.dart';
 import 'affine.dart';
+import 'gcode_format.dart';
 import 'gcode_generator.dart';
 import 'grbl_service.dart';
 import 'path_offset.dart';
+import 'svg_node_walker.dart';
 
 // label is empty for rapid-move steps (cursor jumps to path start without
 // updating the displayed label).
@@ -74,9 +75,9 @@ class GrblMockService extends GrblService {
   void jog(double dx, double dy, double dz) {
     if (!isIdle) return;
     final cmd = '\$J=G91G21'
-        '${dx != 0 ? 'X${_f(dx)}' : ''}'
-        '${dy != 0 ? 'Y${_f(dy)}' : ''}'
-        '${dz != 0 ? 'Z${_f(dz)}' : ''}'
+        '${dx != 0 ? 'X${formatGcodeNumber(dx)}' : ''}'
+        '${dy != 0 ? 'Y${formatGcodeNumber(dy)}' : ''}'
+        '${dz != 0 ? 'Z${formatGcodeNumber(dz)}' : ''}'
         'F3000';
     logTx(cmd);
     setMachineStatus(MachineStatus.jog);
@@ -212,11 +213,11 @@ class GrblMockService extends GrblService {
       // New path — log header + rapid + laser-on
       _prevStepLabel = step.label;
       logTx('; --- ${step.label} ---');
-      logTx('G0 X${_f(step.x)} Y${_f(step.y)}'); logRx('ok');
+      logTx('G0 X${formatGcodeNumber(step.x)} Y${formatGcodeNumber(step.y)}'); logRx('ok');
       logTx('M3 S500'); logRx('ok');
     } else if (step.label.isNotEmpty && jobCurrentStep % 6 == 0) {
       // Sample every 6th feed-move to keep log readable
-      logTx('G1 X${_f(step.x)} Y${_f(step.y)} F1000'); logRx('ok');
+      logTx('G1 X${formatGcodeNumber(step.x)} Y${formatGcodeNumber(step.y)} F1000'); logRx('ok');
     }
 
     if (step.label.isNotEmpty) jobCurrentLabel = step.label;
@@ -235,60 +236,48 @@ class GrblMockService extends GrblService {
   List<_Step> _collectSteps(SvgDocument doc) {
     final steps = <_Step>[];
 
-    void walk(List<SvgNode> nodes, bool pe, OperationType? iop,
-        LayerSettings? iSettings, SvgAffine pm) {
-      for (final n in nodes) {
-        if (!n.enabled || !pe) continue;
-        final m = pm.multiply(SvgAffine.fromSvgString(n.transform));
-        final own = n.settings.operationType;
-        final eff = own != OperationType.skip ? own : iop;
-        final effSettings =
-            own != OperationType.skip ? n.settings : (iSettings ?? n.settings);
-        if (n.pathData != null && eff != null && eff != OperationType.skip) {
-          final passes = eff == OperationType.fill ? 1 : effSettings.passes;
-          for (var pass = 0; pass < passes; pass++) {
-            final pts = eff == OperationType.fill
-                ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings)
-                : _samplePath(n.pathData!, m, doc.viewBox,
-                    offsetDeltaMm: eff == OperationType.cut
-                        ? _cutOffsetDelta(machineSettings, effSettings)
-                        : 0.0);
-            if (pts.isEmpty) continue;
-            final label = passes > 1
-                ? '${eff.label}: ${n.label} (pass ${pass + 1}/$passes)'
-                : '${eff.label}: ${n.label}';
-            if (eff == OperationType.fill) {
-              // Each pair of pts is one scanline: rapid to start, feed to end
-              for (var i = 0; i < pts.length - 1; i += 2) {
-                steps.add((label: '', x: pts[i].dx, y: pts[i].dy));
-                steps.add((label: label, x: pts[i].dx, y: pts[i].dy));
-                steps.add((label: label, x: pts[i + 1].dx, y: pts[i + 1].dy));
-              }
-              // Outline pass after fill
-              if (effSettings.fillOutline) {
-                final outline = _samplePath(n.pathData!, m, doc.viewBox);
-                if (outline.isNotEmpty) {
-                  final outlineLabel = 'Fill outline: ${n.label}';
-                  steps.add((label: '', x: outline.first.dx, y: outline.first.dy));
-                  for (final pt in outline) {
-                    steps.add((label: outlineLabel, x: pt.dx, y: pt.dy));
-                  }
-                }
-              }
-            } else {
-              steps.add((label: '', x: pts.first.dx, y: pts.first.dy));
-              for (final pt in pts) {
-                steps.add((label: label, x: pt.dx, y: pt.dy));
+    walkSvgNodes(doc.roots, (n, m, eff, effSettings) {
+      if (!isActiveOp(n.pathData, eff)) return;
+      final op = eff!;
+      final passes = effectivePassesFor(op, effSettings);
+      for (var pass = 0; pass < passes; pass++) {
+        final pts = op == OperationType.fill
+            ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings)
+            : _samplePath(n.pathData!, m, doc.viewBox,
+                offsetDeltaMm: op == OperationType.cut
+                    ? machineSettings.cutOffsetDeltaFor(effSettings)
+                    : 0.0);
+        if (pts.isEmpty) continue;
+        final label = passes > 1
+            ? '${op.label}: ${n.label} (pass ${pass + 1}/$passes)'
+            : '${op.label}: ${n.label}';
+        if (op == OperationType.fill) {
+          // Each pair of pts is one scanline: rapid to start, feed to end
+          for (var i = 0; i < pts.length - 1; i += 2) {
+            steps.add((label: '', x: pts[i].dx, y: pts[i].dy));
+            steps.add((label: label, x: pts[i].dx, y: pts[i].dy));
+            steps.add((label: label, x: pts[i + 1].dx, y: pts[i + 1].dy));
+          }
+          // Outline pass after fill
+          if (effSettings.fillOutline) {
+            final outline = _samplePath(n.pathData!, m, doc.viewBox);
+            if (outline.isNotEmpty) {
+              final outlineLabel = 'Fill outline: ${n.label}';
+              steps.add((label: '', x: outline.first.dx, y: outline.first.dy));
+              for (final pt in outline) {
+                steps.add((label: outlineLabel, x: pt.dx, y: pt.dy));
               }
             }
           }
+        } else {
+          steps.add((label: '', x: pts.first.dx, y: pts.first.dy));
+          for (final pt in pts) {
+            steps.add((label: label, x: pt.dx, y: pt.dy));
+          }
         }
-        walk(n.children, n.enabled, eff,
-            own != OperationType.skip ? n.settings : iSettings, m);
       }
-    }
+    });
 
-    walk(doc.roots, true, null, null, SvgAffine.identity);
     return steps;
   }
 
@@ -362,7 +351,6 @@ class GrblMockService extends GrblService {
     }
   }
 
-  static String _f(double v) => v.toStringAsFixed(3);
   double _round(double v) => (v * 1000).roundToDouble() / 1000;
 
   @override
@@ -371,15 +359,4 @@ class GrblMockService extends GrblService {
     _jobTimer?.cancel();
     super.dispose();
   }
-}
-
-/// Signed XY offset (mm) for a Cut layer's toolpath: outer grows, inner
-/// shrinks, by the tool/spot's effective diameter at the layer's cut depth.
-double _cutOffsetDelta(MachineSettings machineSettings, LayerSettings s) {
-  final effDiam = machineSettings.effectiveDiameterAt(s.cutDepthMm);
-  return switch (s.cutSide) {
-    CutSide.line => 0.0,
-    CutSide.outer => effDiam / 2,
-    CutSide.inner => -effDiam / 2,
-  };
 }

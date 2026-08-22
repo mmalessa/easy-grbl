@@ -31,13 +31,13 @@ class JogPanel extends StatelessWidget {
                   Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _JogBtn(
+                      _JogIconButton(
                         icon: Icons.keyboard_arrow_up,
                         enabled: enabled,
                         onTap: () => service.jog(0, 0, stepZ),
                       ),
                       const SizedBox(height: 4),
-                      _JogBtn(
+                      _JogIconButton(
                         icon: Icons.keyboard_arrow_down,
                         enabled: enabled,
                         onTap: () => service.jog(0, 0, -stepZ),
@@ -57,7 +57,7 @@ class JogPanel extends StatelessWidget {
               Row(
                 children: [
                   Expanded(
-                    child: _CmdBtn(
+                    child: _JogCommandButton(
                       label: 'Go Home',
                       icon: Icons.home_outlined,
                       enabled: enabled,
@@ -66,7 +66,7 @@ class JogPanel extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: _CmdBtn(
+                    child: _JogCommandButton(
                       label: 'Set Home',
                       icon: Icons.gps_fixed,
                       enabled: enabled,
@@ -100,7 +100,7 @@ class _JogPad extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(width: 44),
-            _JogBtn(
+            _JogIconButton(
               icon: Icons.keyboard_arrow_up,
               enabled: enabled,
               onTap: () => service.jog(0, step, 0),
@@ -112,19 +112,19 @@ class _JogPad extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _JogBtn(
+            _JogIconButton(
               icon: Icons.keyboard_arrow_left,
               enabled: enabled,
               onTap: () => service.jog(-step, 0, 0),
             ),
             const SizedBox(width: 4),
-            _JogBtn(
+            _JogIconButton(
               icon: Icons.home,
               enabled: enabled,
               onTap: service.homeAll,
             ),
             const SizedBox(width: 4),
-            _JogBtn(
+            _JogIconButton(
               icon: Icons.keyboard_arrow_right,
               enabled: enabled,
               onTap: () => service.jog(step, 0, 0),
@@ -136,7 +136,7 @@ class _JogPad extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(width: 44),
-            _JogBtn(
+            _JogIconButton(
               icon: Icons.keyboard_arrow_down,
               enabled: enabled,
               onTap: () => service.jog(0, -step, 0),
@@ -151,18 +151,20 @@ class _JogPad extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _JogBtn extends StatelessWidget {
-  final IconData? icon;
-  final String? label;
+/// Small square icon button used in the jog D-pad, Z buttons, and Home
+/// button. Distinct in shape from [IconStepperButton] (fixed 40×36,
+/// neutral surface background, no active-color tint) so kept as its own
+/// widget rather than forced into that family — see refactor-todo.md P6.
+class _JogIconButton extends StatelessWidget {
+  final IconData icon;
   final bool enabled;
   final VoidCallback onTap;
 
-  const _JogBtn({
-    this.icon,
-    this.label,
+  const _JogIconButton({
+    required this.icon,
     required this.enabled,
     required this.onTap,
-  }) : assert(icon != null || label != null);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -177,18 +179,9 @@ class _JogBtn extends StatelessWidget {
           width: 40,
           height: 36,
           child: Center(
-            child: icon != null
-                ? Icon(icon,
-                    size: 20,
-                    color: enabled ? cs.onSurface : cs.onSurfaceVariant)
-                : Text(
-                    label!,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: enabled ? cs.onSurface : cs.onSurfaceVariant,
-                    ),
-                  ),
+            child: Icon(icon,
+                size: 20,
+                color: enabled ? cs.onSurface : cs.onSurfaceVariant),
           ),
         ),
       ),
@@ -280,13 +273,17 @@ class _StepChip extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _CmdBtn extends StatelessWidget {
+/// Full-width icon+label command button ("Go Home", "Set Home") — same
+/// neutral-surface family as [_JogIconButton], different shape (icon +
+/// text row instead of icon-only square), so named as a sibling rather
+/// than merged with it.
+class _JogCommandButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool enabled;
   final VoidCallback onTap;
 
-  const _CmdBtn({
+  const _JogCommandButton({
     required this.label,
     required this.icon,
     required this.enabled,

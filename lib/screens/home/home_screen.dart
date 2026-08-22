@@ -11,6 +11,7 @@ import '../../services/svg_tree_parser.dart';
 import '../../services/grbl_service.dart';
 import '../../services/grbl_mock_service.dart';
 import '../../services/grbl_serial_service.dart';
+import '../../services/gcode_format.dart';
 import '../../services/gcode_generator.dart';
 import '../../services/gcode_templates.dart';
 import '../../services/toolpath.dart';
@@ -18,6 +19,7 @@ import '../../models/machine_settings.dart';
 import '../../models/focus_test_config.dart';
 import '../../models/kerf_test_config.dart';
 import '../../models/spot_test_config.dart';
+import '../../models/test_session.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/connect_dialog.dart';
 import '../../widgets/machine_settings_dialog.dart';
@@ -58,20 +60,8 @@ class _HomeScreenState extends State<HomeScreen> {
   MachineSettings _machineSettings = const MachineSettings();
   String? _lastDirectory;
 
-  // Focus Test
-  bool _showFocusTest = false;
-  FocusTestConfig _focusTestConfig = const FocusTestConfig();
-  SvgDocument? _focusTestDocument;
-
-  // Kerf Test
-  bool _showKerfTest = false;
-  KerfTestConfig _kerfTestConfig = const KerfTestConfig();
-  SvgDocument? _kerfTestDocument;
-
-  // Spot Size Test
-  bool _showSpotTest = false;
-  SpotTestConfig _spotTestConfig = const SpotTestConfig();
-  SvgDocument? _spotTestDocument;
+  // At most one template test (Focus/Kerf/Spot) is active at a time.
+  TestSession _testSession = const NoTestSession();
 
   @override
   void dispose() {
@@ -239,39 +229,13 @@ class _HomeScreenState extends State<HomeScreen> {
       powerPercent: _machineSettings.engravePower,
       speedMmMin: _machineSettings.engraveSpeed,
     );
-    setState(() {
-      _showKerfTest = false;
-      _showFocusTest = true;
-      _focusTestConfig = cfg;
-      _focusTestDocument = _buildFocusTestDocument(cfg);
-    });
+    setState(() =>
+        _testSession = FocusTestSession(cfg, _buildFocusTestDocument(cfg)));
   }
 
   void _onFocusTestChanged(FocusTestConfig cfg) {
-    setState(() {
-      _focusTestConfig = cfg;
-      _focusTestDocument = _buildFocusTestDocument(cfg);
-    });
-  }
-
-  void _onCloseFocusTest() {
-    setState(() => _showFocusTest = false);
-  }
-
-  void _startFocusTestJob() {
-    final gcode = GcodeTemplates.focusTest(
-      _focusTestConfig,
-      _machineSettings,
-    );
-    final lines = gcode
-        .split('\n')
-        .map((l) => l.contains(';')
-            ? l.substring(0, l.indexOf(';')).trim()
-            : l.trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return;
-    _grbl.startLines(lines);
+    setState(() =>
+        _testSession = FocusTestSession(cfg, _buildFocusTestDocument(cfg)));
   }
 
   SvgDocument _buildKerfTestDocument(KerfTestConfig cfg) {
@@ -302,39 +266,13 @@ class _HomeScreenState extends State<HomeScreen> {
       maxPowerPercent: _machineSettings.engravePower,
       speedMmMin: _machineSettings.engraveSpeed,
     );
-    setState(() {
-      _showFocusTest = false;
-      _showKerfTest = true;
-      _kerfTestConfig = cfg;
-      _kerfTestDocument = _buildKerfTestDocument(cfg);
-    });
+    setState(() =>
+        _testSession = KerfTestSession(cfg, _buildKerfTestDocument(cfg)));
   }
 
   void _onKerfTestChanged(KerfTestConfig cfg) {
-    setState(() {
-      _kerfTestConfig = cfg;
-      _kerfTestDocument = _buildKerfTestDocument(cfg);
-    });
-  }
-
-  void _onCloseKerfTest() {
-    setState(() => _showKerfTest = false);
-  }
-
-  void _startKerfTestJob() {
-    final gcode = GcodeTemplates.kerfTest(
-      _kerfTestConfig,
-      _machineSettings,
-    );
-    final lines = gcode
-        .split('\n')
-        .map((l) => l.contains(';')
-            ? l.substring(0, l.indexOf(';')).trim()
-            : l.trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
-    if (lines.isEmpty) return;
-    _grbl.startLines(lines);
+    setState(() =>
+        _testSession = KerfTestSession(cfg, _buildKerfTestDocument(cfg)));
   }
 
   SvgDocument _buildSpotTestDocument(SpotTestConfig cfg) {
@@ -365,37 +303,34 @@ class _HomeScreenState extends State<HomeScreen> {
       powerPercent: _machineSettings.engravePower,
       speedMmMin: _machineSettings.engraveSpeed,
     );
-    setState(() {
-      _showFocusTest = false;
-      _showKerfTest = false;
-      _showSpotTest = true;
-      _spotTestConfig = cfg;
-      _spotTestDocument = _buildSpotTestDocument(cfg);
-    });
+    setState(() =>
+        _testSession = SpotTestSession(cfg, _buildSpotTestDocument(cfg)));
   }
 
   void _onSpotTestChanged(SpotTestConfig cfg) {
-    setState(() {
-      _spotTestConfig = cfg;
-    });
+    // The Spot Test document's geometry doesn't depend on power/speed, so
+    // keep the existing document instead of rebuilding it on every change.
+    final session = _testSession;
+    if (session is! SpotTestSession) return;
+    setState(() => _testSession = SpotTestSession(cfg, session.document));
   }
 
-  void _onCloseSpotTest() {
-    setState(() => _showSpotTest = false);
+  void _onCloseTest() {
+    setState(() => _testSession = const NoTestSession());
   }
 
-  void _startSpotTestJob() {
-    final gcode = GcodeTemplates.spotTest(
-      _spotTestConfig,
-      _machineSettings,
-    );
-    final lines = gcode
-        .split('\n')
-        .map((l) => l.contains(';')
-            ? l.substring(0, l.indexOf(';')).trim()
-            : l.trim())
-        .where((l) => l.isNotEmpty)
-        .toList();
+  void _startTestJob() {
+    final gcode = switch (_testSession) {
+      NoTestSession() => null,
+      FocusTestSession(:final config) =>
+        GcodeTemplates.focusTest(config, _machineSettings),
+      KerfTestSession(:final config) =>
+        GcodeTemplates.kerfTest(config, _machineSettings),
+      SpotTestSession(:final config) =>
+        GcodeTemplates.spotTest(config, _machineSettings),
+    };
+    if (gcode == null) return;
+    final lines = stripGcodeComments(gcode);
     if (lines.isEmpty) return;
     _grbl.startLines(lines);
   }
@@ -468,6 +403,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final testDocument = switch (_testSession) {
+      NoTestSession() => null,
+      FocusTestSession(:final document) => document,
+      KerfTestSession(:final document) => document,
+      SpotTestSession(:final document) => document,
+    };
+    final previewDocument = testDocument ?? _document;
     return ListenableBuilder(
       listenable: _grbl,
       builder: (context, _) => Focus(
@@ -502,30 +444,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         onToggleEnabled: _toggleEnabled,
                         onSelect: _selectNode,
                         onSettingsChanged: _onSettingsChanged,
-                        showFocusTest: _showFocusTest,
-                        focusTestConfig: _focusTestConfig,
+                        testSession: _testSession,
                         onFocusTestChanged: _onFocusTestChanged,
-                        onFocusTestClose: _onCloseFocusTest,
-                        showKerfTest: _showKerfTest,
-                        kerfTestConfig: _kerfTestConfig,
                         onKerfTestChanged: _onKerfTestChanged,
-                        onKerfTestClose: _onCloseKerfTest,
-                        showSpotTest: _showSpotTest,
-                        spotTestConfig: _spotTestConfig,
                         onSpotTestChanged: _onSpotTestChanged,
-                        onSpotTestClose: _onCloseSpotTest,
+                        onCloseTest: _onCloseTest,
                       ),
                     ),
                     const VerticalDivider(width: 1, thickness: 1),
                     Expanded(
                       child: SvgPreviewWidget(
-                        document: _showFocusTest
-                            ? _focusTestDocument
-                            : _showKerfTest
-                                ? _kerfTestDocument
-                                : _showSpotTest
-                                    ? _spotTestDocument
-                                    : _document,
+                        document: previewDocument,
                         machinePos: _grbl.connected
                             ? Offset(_grbl.x, _grbl.y)
                             : null,
@@ -542,22 +471,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     SizedBox(
                       width: 290,
                       child: RightPanel(
-                        document: _showFocusTest
-                            ? _focusTestDocument
-                            : _showKerfTest
-                                ? _kerfTestDocument
-                                : _showSpotTest
-                                    ? _spotTestDocument
-                                    : _document,
+                        document: previewDocument,
                         service: _grbl,
                         onToggleConnect: _openConnectDialog,
-                        onStartJob: _showFocusTest
-                            ? _startFocusTestJob
-                            : _showKerfTest
-                                ? _startKerfTestJob
-                                : _showSpotTest
-                                    ? _startSpotTestJob
-                                    : null,
+                        onStartJob: _testSession is NoTestSession
+                            ? null
+                            : _startTestJob,
                         onExportGcode:
                             _document != null ? _exportGcode : null,
                       ),
