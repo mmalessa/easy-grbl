@@ -52,6 +52,19 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  msix: ^3.18.0
+
+# Windows installer packaging (see Makefile's dist-windows target and
+# README). Uses an auto-generated self-signed test certificate since no
+# certificate_path is set -- fine for side-loading on your own machine,
+# but Windows will flag the installer as coming from an "unknown
+# publisher" until it's properly code-signed.
+msix_config:
+  display_name: EasyGRBL
+  publisher_display_name: Marcin Malessa
+  publisher: CN=Marcin Malessa
+  identity_name: pl.malessa.easy_grbl
+  msix_version: 1.0.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=EasyGRBL
+Comment=CNC/laser control via GRBL
+Exec=/opt/@APP_NAME@/@APP_NAME@
+Icon=/opt/@APP_NAME@/easygrbl.svg
+Terminal=false
+Categories=Utility;Engineering;
+StartupWMClass=@APP_NAME@

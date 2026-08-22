@@ -1,0 +1,11 @@
+Package: easy-grbl
+Version: @VERSION@
+Section: electronics
+Priority: optional
+Architecture: amd64
+Maintainer: Marcin Malessa <marcin@malessa.pl>
+Depends: @DEPENDS@
+Description: CNC/laser control via GRBL
+ EasyGRBL is a desktop app for controlling CNC and laser machines via
+ the GRBL firmware, with SVG import, per-layer operation settings,
+ G-code generation, and jog control.
