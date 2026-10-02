@@ -264,7 +264,8 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
             _OutlineCheckbox(
               value: _fillOutline,
               color: color,
-              spotSize: widget.machineSettings.laser.laserSpotSize,
+              spotSize:
+                  GcodeStrategy.of(widget.machineSettings).fillSpotDiameter,
               onChanged: (v) {
                 setState(() => _fillOutline = v);
                 _emit();
@@ -800,7 +801,7 @@ class _OutlineCheckbox extends StatelessWidget {
                   ),
                   if (value)
                     Text(
-                      'fill inset by ${inset.toStringAsFixed(3)} mm (½ spot size)',
+                      'runs ${inset.toStringAsFixed(3)} mm (½ spot) inside the edge',
                       style: TextStyle(
                         fontSize: 9,
                         color: cs.onSurfaceVariant,

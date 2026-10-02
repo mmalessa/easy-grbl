@@ -24,7 +24,6 @@ void main() {
     );
     final strategy = GcodeStrategy.of(s) as MillGcodeStrategy;
     expect(strategy.laserMode, LaserMode.variable);
-    expect(strategy.laserSpotSize, 0.3);
     expect(GcodeStrategy.of(const MachineSettings()), isA<LaserGcodeStrategy>());
   });
 
@@ -37,8 +36,7 @@ void main() {
       expect(strategy.spindleOnCode, 'M4');
       expect(strategy.cutOffsetDelta(LayerSettings(cutSide: CutSide.outer)), 0.1);
       expect(strategy.cutOffsetDelta(LayerSettings(cutSide: CutSide.inner)), -0.1);
-      expect(strategy.fillInset(LayerSettings(fillOutline: true)), 0.1);
-      expect(strategy.fillInset(LayerSettings(fillOutline: false)), 0.0);
+      expect(strategy.fillSpotDiameter, 0.2);
       expect(strategy.plungeDepth(OperationType.cut, LayerSettings()), isNull);
     });
 
@@ -57,7 +55,6 @@ void main() {
           maxSpindleSpeed: 24000, toolDiameter: 6, bladeAngle: 90,
           safeHeight: 3, travelFeedRate: 10),
       laserMode: LaserMode.constant,
-      laserSpotSize: 0.2,
     );
 
     test('scaling, V-bit offset, plunge only for cut', () {
@@ -67,7 +64,7 @@ void main() {
           strategy.cutOffsetDelta(
               LayerSettings(cutSide: CutSide.outer, cutDepthMm: 1)),
           closeTo(1, 1e-9));
-      expect(strategy.fillInset(LayerSettings(fillOutline: true)), 0.1);
+      expect(strategy.fillSpotDiameter, 6);
       expect(strategy.plungeDepth(OperationType.cut, LayerSettings(cutDepthMm: 2)), 2);
       expect(strategy.plungeDepth(OperationType.engrave, LayerSettings()), isNull);
     });

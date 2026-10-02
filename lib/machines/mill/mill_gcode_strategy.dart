@@ -10,16 +10,10 @@ class MillGcodeStrategy extends GcodeStrategy {
   final MillSettings settings;
 
   // Borrowed from the laser settings to keep today's output: the spindle is
-  // started with the laser's M3/M4 choice and fill inset uses the laser spot
-  // size (spec Follow-ups 1 and 2).
+  // started with the laser's M3/M4 choice (spec Follow-up 1).
   final LaserMode laserMode;
-  final double laserSpotSize;
 
-  const MillGcodeStrategy(
-    this.settings, {
-    required this.laserMode,
-    required this.laserSpotSize,
-  });
+  const MillGcodeStrategy(this.settings, {required this.laserMode});
 
   int get _travelF => (settings.travelFeedRate * 60).round(); // mm/s -> mm/min
 
@@ -34,7 +28,7 @@ class MillGcodeStrategy extends GcodeStrategy {
       settings.effectiveDiameterAt(cutDepthMm);
 
   @override
-  double fillInset(LayerSettings s) => s.fillOutline ? laserSpotSize / 2 : 0.0;
+  double get fillSpotDiameter => settings.toolDiameter;
 
   // Only Cut has real Z motion; Engrave and Fill stay at Z0 (Follow-up 7).
   @override

@@ -21,8 +21,7 @@ class LaserGcodeStrategy extends GcodeStrategy {
   double effectiveDiameterAt(double cutDepthMm) => settings.laserSpotSize;
 
   @override
-  double fillInset(LayerSettings s) =>
-      s.fillOutline ? settings.laserSpotSize / 2 : 0.0;
+  double get fillSpotDiameter => settings.laserSpotSize;
 
   @override
   double? plungeDepth(OperationType op, LayerSettings s) => null;

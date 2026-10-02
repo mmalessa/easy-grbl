@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:path_drawing/path_drawing.dart';
 import '../../geometry/affine.dart';
 import '../../geometry/contour_sampler.dart';
-import '../../geometry/fill_lines.dart';
+import '../../geometry/fill_toolpath.dart';
 import '../../geometry/path_offset.dart';
 import '../../geometry/svg_node_walker.dart';
 import '../../models/layer_settings.dart';
@@ -72,22 +72,16 @@ class GcodeGenerator {
     final sPower = (s.powerPercent / 100.0 * sMax).round().clamp(0, sMax);
 
     if (op == OperationType.fill) {
-      final inset = strategy.fillInset(s);
       buf.writeln(
         '; --- ${node.label} [Fill]'
         '  power:${s.powerPercent}%  speed:${s.speedMmS.toStringAsFixed(1)} mm/s'
         '  lines/mm:${s.linesPerMm.toStringAsFixed(1)}'
         '  dir:${s.fillDirection.name}'
-        '${s.fillOutline ? '  outline:yes  inset:${inset.toStringAsFixed(3)}mm' : ''} ---',
+        '  inset:${(strategy.fillSpotDiameter / 2).toStringAsFixed(3)}mm'
+        '${s.fillOutline ? '  outline:yes' : ''} ---',
       );
-      _fillToGcode(node.pathData!, transform, vb, sPower, feedRateMmMin,
-          s.fillDirection, s.linesPerMm, strategy, buf,
-          inset: inset);
-      if (s.fillOutline) {
-        buf.writeln('; outline pass');
-        _pathToGcode(
-            node.pathData!, transform, vb, sPower, feedRateMmMin, strategy, buf);
-      }
+      _fillToGcode(node.pathData!, transform, vb, sPower, feedRateMmMin, s,
+          strategy, buf);
     } else {
       final isCut = op == OperationType.cut;
       final offsetDelta = isCut ? strategy.cutOffsetDelta(s) : 0.0;
@@ -127,12 +121,27 @@ class GcodeGenerator {
       final tp = xform.apply(p);
       return Offset(tp.dx - vb.left, vb.bottom - tp.dy);
     });
+    _contoursToGcode(
+        [
+          for (final pts in contours)
+            offsetDeltaMm != 0
+                ? PathOffset.offsetClosedContour(pts, offsetDeltaMm)
+                : pts,
+        ],
+        sPower, feedRate, strategy, buf,
+        plungeZMm: plungeZMm);
+  }
 
-    for (var pts in contours) {
-      if (offsetDeltaMm != 0) {
-        pts = PathOffset.offsetClosedContour(pts, offsetDeltaMm);
-      }
-
+  /// Burns each of [contours] (machine coordinates) as one tool-on run.
+  static void _contoursToGcode(
+    List<List<Offset>> contours,
+    int sPower,
+    int feedRate,
+    GcodeStrategy strategy,
+    StringBuffer buf, {
+    double? plungeZMm,
+  }) {
+    for (final pts in contours) {
       buf.writeln('M5 S0');
       strategy.writeContourStart(buf, pts.first, sPower, plungeZMm);
 
@@ -151,7 +160,7 @@ class GcodeGenerator {
     }
   }
 
-  // ── Fill (scanline hatch) ──────────────────────────────────────────────────
+  // ── Fill (scanline hatch + optional outline) ───────────────────────────────
 
   static void _fillToGcode(
     String pathData,
@@ -159,12 +168,10 @@ class GcodeGenerator {
     Rect vb,
     int sPower,
     int feedRate,
-    FillDirection direction,
-    double linesPerMm,
+    LayerSettings s,
     GcodeStrategy strategy,
-    StringBuffer buf, {
-    double inset = 0.0,
-  }) {
+    StringBuffer buf,
+  ) {
     final Path rawPath;
     try {
       rawPath = parseSvgPathData(pathData);
@@ -172,26 +179,32 @@ class GcodeGenerator {
       return;
     }
 
-    // Apply transform in SVG space, then compute fill lines
-    final path = rawPath.transform(xform.toFloat64());
-    final lines = computeFillLines(path, direction, linesPerMm, inset: inset);
-    if (lines.isEmpty) return;
+    // Compute in SVG space, then flip Y for the G-code coordinate system.
+    final fill = computeFillToolpath(rawPath.transform(xform.toFloat64()),
+        direction: s.fillDirection,
+        linesPerMm: s.linesPerMm,
+        spotDiameter: strategy.fillSpotDiameter,
+        outline: s.fillOutline);
+    Offset toMachine(Offset p) => Offset(p.dx - vb.left, vb.bottom - p.dy);
 
     int? lastF;
-    for (final line in lines) {
-      // Flip Y for G-code coordinate system
-      final x1 = line.$1.dx - vb.left;
-      final y1 = vb.bottom - line.$1.dy;
-      final x2 = line.$2.dx - vb.left;
-      final y2 = vb.bottom - line.$2.dy;
+    for (final line in fill.lines) {
+      final a = toMachine(line.$1);
+      final b = toMachine(line.$2);
 
       buf.writeln('M5 S0');
-      buf.writeln('G0 X${formatGcodeNumber(x1)} Y${formatGcodeNumber(y1)}');
+      buf.writeln('G0 X${formatGcodeNumber(a.dx)} Y${formatGcodeNumber(a.dy)}');
       buf.writeln('${strategy.spindleOnCode} S$sPower');
       final fTag = (lastF == feedRate) ? '' : ' F$feedRate';
-      buf.writeln('G1 X${formatGcodeNumber(x2)} Y${formatGcodeNumber(y2)}$fTag');
+      buf.writeln('G1 X${formatGcodeNumber(b.dx)} Y${formatGcodeNumber(b.dy)}$fTag');
       lastF = feedRate;
       buf.writeln('M5 S0');
     }
+
+    if (fill.outline.isEmpty) return;
+    buf.writeln('; outline pass');
+    _contoursToGcode(
+        [for (final c in fill.outline) c.map(toMachine).toList()],
+        sPower, feedRate, strategy, buf);
   }
 }

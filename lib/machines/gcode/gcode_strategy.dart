@@ -15,11 +15,8 @@ abstract class GcodeStrategy {
 
   factory GcodeStrategy.of(MachineSettings s) => switch (s.machineType) {
         MachineType.laser => LaserGcodeStrategy(s.laser),
-        MachineType.mill => MillGcodeStrategy(
-            s.mill,
-            laserMode: s.laser.laserMode,
-            laserSpotSize: s.laser.laserSpotSize,
-          ),
+        MachineType.mill =>
+          MillGcodeStrategy(s.mill, laserMode: s.laser.laserMode),
       };
 
   /// Ceiling for `S<value>`: a layer's Power % maps to 0..[sMax].
@@ -42,9 +39,9 @@ abstract class GcodeStrategy {
     };
   }
 
-  /// How far fill lines stay away from the outline when an outline pass is
-  /// also burned.
-  double fillInset(LayerSettings s);
+  /// Width (mm) of the mark a Fill layer burns per line — the hatch and its
+  /// outline are kept half of this inside the filled shape.
+  double get fillSpotDiameter;
 
   /// Depth (mm, positive) to plunge to for [op], or null for no Z motion.
   double? plungeDepth(OperationType op, LayerSettings s);

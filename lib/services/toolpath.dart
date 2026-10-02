@@ -7,7 +7,7 @@ import '../machines/gcode/gcode_strategy.dart';
 import '../machines/machine_settings.dart';
 import '../geometry/affine.dart';
 import '../geometry/contour_sampler.dart';
-import '../geometry/fill_lines.dart';
+import '../geometry/fill_toolpath.dart';
 import '../geometry/path_offset.dart';
 import '../geometry/svg_node_walker.dart';
 
@@ -56,7 +56,7 @@ ToolpathData? computeToolpath(SvgDocument doc,
     final op = effectiveOp!;
     if (op == OperationType.fill) {
       _sampleFill(node.pathData!, transform, effectiveSettings,
-          strategy.fillInset(effectiveSettings), addContour);
+          strategy.fillSpotDiameter, addContour);
     } else {
       final offsetDelta = op == OperationType.cut
           ? strategy.cutOffsetDelta(effectiveSettings)
@@ -99,7 +99,7 @@ void _sampleFill(
   String pathData,
   SvgAffine xform,
   LayerSettings settings,
-  double inset,
+  double spotDiameter,
   void Function(List<Offset>, Color) addContour,
 ) {
   final Path rawPath;
@@ -108,17 +108,17 @@ void _sampleFill(
   } catch (_) {
     return;
   }
-  final path = rawPath.transform(xform.toFloat64());
   final color = OperationType.fill.color;
+  final fill = computeFillToolpath(rawPath.transform(xform.toFloat64()),
+      direction: settings.fillDirection,
+      linesPerMm: settings.linesPerMm,
+      spotDiameter: spotDiameter,
+      outline: settings.fillOutline);
 
-  final lines = computeFillLines(
-      path, settings.fillDirection, settings.linesPerMm, inset: inset);
-
-  for (final line in lines) {
+  for (final line in fill.lines) {
     addContour([line.$1, line.$2], color);
   }
-
-  if (settings.fillOutline) {
-    _samplePath(pathData, xform, color, addContour);
+  for (final contour in fill.outline) {
+    addContour(contour, color);
   }
 }

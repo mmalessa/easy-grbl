@@ -45,4 +45,36 @@ class PathOffset {
     }
     return out;
   }
+
+  /// Shrinks the filled region bounded by [contours] (even-odd, like an SVG
+  /// fill) by [deltaMm]: outer edges move inward and holes grow, so a tool of
+  /// radius [deltaMm] running on the result never leaves the region. Every
+  /// returned contour is closed (first point repeated last). Returns an empty
+  /// list when the region is narrower than 2×[deltaMm] everywhere.
+  static List<List<Offset>> insetFilledRegion(
+      List<List<Offset>> contours, double deltaMm) {
+    final paths = <Path64>[
+      for (final c in contours)
+        if (c.length >= 3)
+          PathDExt.from([for (final p in c) ...[p.dx, p.dy]])
+              .scaledPath64(_scale),
+    ];
+    if (paths.isEmpty) return const [];
+
+    // Normalise to non-overlapping polygons with holes oriented opposite to
+    // their outers — ClipperOffset tells holes apart by orientation only.
+    final region = Clipper.union(subject: paths, fillRule: FillRule.evenOdd);
+    final offsetter = ClipperOffset()
+      ..addPaths(region, joinType: JoinType.round, endType: EndType.polygon);
+    final result = offsetter.execute(delta: -deltaMm * _scale);
+
+    return [
+      for (final p in result)
+        if (p.length >= 3)
+          [
+            for (final q in p.scaledPathD(1 / _scale)) Offset(q.x, q.y),
+            Offset(p.first.x / _scale, p.first.y / _scale),
+          ],
+    ];
+  }
 }

@@ -18,6 +18,16 @@ List<List<Offset>> sampleContours(
   } catch (_) {
     return const [];
   }
+  return samplePathContours(path, step: step, minDistSq: minDistSq, map: map);
+}
+
+/// [sampleContours] for an already-parsed [path].
+List<List<Offset>> samplePathContours(
+  Path path, {
+  required double step,
+  required double minDistSq,
+  Offset Function(Offset) map = _identity,
+}) {
   final contours = <List<Offset>>[];
   for (final metric in path.computeMetrics()) {
     if (metric.length < 0.001) continue;
@@ -36,3 +46,5 @@ List<List<Offset>> sampleContours(
   }
   return contours;
 }
+
+Offset _identity(Offset p) => p;

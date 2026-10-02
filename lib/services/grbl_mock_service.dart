@@ -10,7 +10,7 @@ import '../machines/machine_mode.dart';
 import '../models/operation_type.dart';
 import '../geometry/affine.dart';
 import 'gcode_format.dart';
-import '../geometry/fill_lines.dart';
+import '../geometry/fill_toolpath.dart';
 import 'grbl_service.dart';
 import '../geometry/path_offset.dart';
 import '../geometry/svg_node_walker.dart';
@@ -249,9 +249,12 @@ class GrblMockService extends GrblService {
       final op = eff!;
       final passes = effectivePassesFor(op, effSettings);
       for (var pass = 0; pass < passes; pass++) {
-        final pts = op == OperationType.fill
+        final fill = op == OperationType.fill
             ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings,
-                strategy.fillInset(effSettings))
+                strategy.fillSpotDiameter)
+            : null;
+        final pts = fill != null
+            ? fill.lines
             : _samplePath(n.pathData!, m, doc.viewBox,
                 offsetDeltaMm: op == OperationType.cut
                     ? strategy.cutOffsetDelta(effSettings)
@@ -260,7 +263,7 @@ class GrblMockService extends GrblService {
         final label = passes > 1
             ? '${op.label}: ${n.label} (pass ${pass + 1}/$passes)'
             : '${op.label}: ${n.label}';
-        if (op == OperationType.fill) {
+        if (fill != null) {
           // Each pair of pts is one scanline: rapid to start, feed to end
           for (var i = 0; i < pts.length - 1; i += 2) {
             steps.add((label: '', x: pts[i].dx, y: pts[i].dy));
@@ -268,8 +271,7 @@ class GrblMockService extends GrblService {
             steps.add((label: label, x: pts[i + 1].dx, y: pts[i + 1].dy));
           }
           // Outline pass after fill
-          if (effSettings.fillOutline) {
-            final outline = _samplePath(n.pathData!, m, doc.viewBox);
+          for (final outline in fill.outline) {
             if (outline.isNotEmpty) {
               final outlineLabel = 'Fill outline: ${n.label}';
               steps.add((label: '', x: outline.first.dx, y: outline.first.dy));
@@ -325,21 +327,37 @@ class GrblMockService extends GrblService {
     }
   }
 
-  // Returns [start, end, start, end, ...] pairs in machine coords for fill lines.
-  // Subsamples to at most 60 lines so the animation doesn't run for too long.
-  List<Offset> _sampleFill(
+  // Returns fill lines as [start, end, start, end, ...] pairs plus outline
+  // contours, all in machine coords. Subsamples to at most 60 lines and ~20
+  // points per outline so the animation doesn't run for too long.
+  ({List<Offset> lines, List<List<Offset>> outline}) _sampleFill(
     String pathData,
     SvgAffine xform,
     Rect vb,
     LayerSettings settings,
-    double inset,
+    double spotDiameter,
   ) {
+    const empty = (lines: <Offset>[], outline: <List<Offset>>[]);
     try {
       final rawPath = parseSvgPathData(pathData);
-      final path = rawPath.transform(xform.toFloat64());
-      var lines = computeFillLines(
-          path, settings.fillDirection, settings.linesPerMm, inset: inset);
-      if (lines.isEmpty) return [];
+      final fill = computeFillToolpath(rawPath.transform(xform.toFloat64()),
+          direction: settings.fillDirection,
+          linesPerMm: settings.linesPerMm,
+          spotDiameter: spotDiameter,
+          outline: settings.fillOutline);
+      Offset toMachine(Offset p) => Offset(p.dx - vb.left, vb.bottom - p.dy);
+
+      final outline = [
+        for (final c in fill.outline)
+          [
+            for (var i = 0; i < c.length; i += math.max(1, c.length ~/ 20))
+              toMachine(c[i]),
+            toMachine(c.last),
+          ],
+      ];
+
+      var lines = fill.lines;
+      if (lines.isEmpty) return (lines: <Offset>[], outline: outline);
 
       const maxLines = 60;
       if (lines.length > maxLines) {
@@ -351,12 +369,12 @@ class GrblMockService extends GrblService {
 
       final pts = <Offset>[];
       for (final line in lines) {
-        pts.add(Offset(line.$1.dx - vb.left, vb.bottom - line.$1.dy));
-        pts.add(Offset(line.$2.dx - vb.left, vb.bottom - line.$2.dy));
+        pts.add(toMachine(line.$1));
+        pts.add(toMachine(line.$2));
       }
-      return pts;
+      return (lines: pts, outline: outline);
     } catch (_) {
-      return [];
+      return empty;
     }
   }
 
