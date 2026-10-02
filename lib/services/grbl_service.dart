@@ -31,16 +31,54 @@ abstract class GrblService extends ChangeNotifier {
   double get z => _machine.z;
   set z(double v) => _machine.z = v;
   MachineStatus get status => _machine.status;
-  set status(MachineStatus v) => _machine.status = v;
+  set status(MachineStatus v) {
+    _machine.status = v;
+    // Jobs, homing and alarms (soft reset) all leave the laser off.
+    if (v == MachineStatus.run ||
+        v == MachineStatus.homing ||
+        v == MachineStatus.alarm) {
+      _laserOn = false;
+    }
+  }
   double get stepMm => _machine.stepMm;
   set stepMm(double v) => _machine.stepMm = v;
   double get stepMmZ => _machine.stepMmZ;
   set stepMmZ(double v) => _machine.stepMmZ = v;
   bool get connected => _machine.connected;
-  set connected(bool v) => _machine.connected = v;
+  set connected(bool v) {
+    _machine.connected = v;
+    if (!v) _laserOn = false;
+  }
 
   // ── Machine configuration ──────────────────────────────────────────
   MachineSettings machineSettings = const MachineSettings();
+
+  // ── Manual laser (test fire / pointer) ───────────────────────────
+  bool _laserOn = false;
+  int _laserPowerPct = 1;
+  bool get laserOn => _laserOn;
+  int get laserPowerPct => _laserPowerPct;
+
+  int get _laserS =>
+      (machineSettings.laser.sMax * _laserPowerPct / 100).round();
+
+  /// Turns the laser on at [laserPowerPct] or off. `G1` makes GRBL fire the
+  /// laser while stationary when laser mode ($32=1) is enabled.
+  void setLaserOn(bool on) {
+    if (on && !isIdle) return;
+    if (!on && !_laserOn) return;
+    _laserOn = on;
+    sendCommand(on ? 'G1 F100 M3 S$_laserS' : 'M5 S0');
+    notifyListeners();
+  }
+
+  /// Sets the manual laser power (1–100 %). With [apply] the new power is
+  /// sent to the machine immediately if the laser is on.
+  void setLaserPower(int pct, {bool apply = true}) {
+    _laserPowerPct = pct.clamp(1, 100);
+    if (apply && _laserOn) sendCommand('G1 F100 M3 S$_laserS');
+    notifyListeners();
+  }
 
   // ── Job state ────────────────────────────────────────────────────
   final JobState _job = JobState();
@@ -87,6 +125,9 @@ abstract class GrblService extends ChangeNotifier {
   Future<bool> setDeviceLaserMode(bool enabled) async => false;
 
   // ── Abstract operations ──────────────────────────────────────────
+  /// Sends a single command immediately (outside job streaming).
+  @protected
+  void sendCommand(String cmd);
   void disconnect();
   void jog(double dx, double dy, double dz);
   void homeAll();

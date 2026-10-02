@@ -250,6 +250,9 @@ class GrblSerialService extends GrblService {
   // ── Machine commands ─────────────────────────────────────────────
 
   @override
+  void sendCommand(String cmd) => _sendRaw(cmd);
+
+  @override
   void jog(double dx, double dy, double dz) {
     if (!isIdle) return;
     final parts = <String>[];

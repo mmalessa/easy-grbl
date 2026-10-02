@@ -70,6 +70,12 @@ class GrblMockService extends GrblService {
     return true;
   }
 
+  @override
+  void sendCommand(String cmd) {
+    logTx(cmd);
+    logRx('ok');
+  }
+
   // ── Jogging ──────────────────────────────────────────────────────
 
   @override

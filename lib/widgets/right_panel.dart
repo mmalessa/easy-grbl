@@ -40,6 +40,7 @@ class RightPanel extends StatelessWidget {
             icon: profile.icon,
           ),
           _MachinePanel(service: service, onToggleConnect: onToggleConnect),
+          if (machineType == MachineType.laser) _LaserControl(service: service),
 
           // ── Run Job ──────────────────────────────────────────────────
           const Divider(height: 1, thickness: 1),
@@ -164,6 +165,82 @@ class _MachinePanel extends StatelessWidget {
                   ),
                   icon: Icon(btnIcon, size: 13),
                   label: Text(btnLabel),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Manual laser on/off toggle with a power slider (percent of `sMax`).
+class _LaserControl extends StatelessWidget {
+  final GrblService service;
+
+  const _LaserControl({required this.service});
+
+  static const _onColor = Color(0xFFFFB300);
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: service,
+      builder: (context, _) {
+        final cs = Theme.of(context).colorScheme;
+        final on = service.laserOn;
+        final canToggle = on || service.isIdle;
+        final color = on ? _onColor : cs.primary;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 10, 8),
+          child: Row(
+            children: [
+              IconButton(
+                onPressed: canToggle ? () => service.setLaserOn(!on) : null,
+                tooltip: on ? 'Laser off' : 'Laser on',
+                iconSize: 18,
+                visualDensity: VisualDensity.compact,
+                color: on ? _onColor : cs.onSurfaceVariant,
+                icon: Icon(on ? Icons.lightbulb : Icons.lightbulb_outline),
+              ),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderThemeData(
+                    activeTrackColor: color,
+                    thumbColor: color,
+                    overlayColor: color.withValues(alpha: 0.15),
+                    inactiveTrackColor: cs.surfaceContainerHighest,
+                    trackHeight: 2,
+                    thumbShape:
+                        const RoundSliderThumbShape(enabledThumbRadius: 6),
+                    overlayShape:
+                        const RoundSliderOverlayShape(overlayRadius: 14),
+                  ),
+                  child: SizedBox(
+                    height: 28,
+                    child: Slider(
+                      value: service.laserPowerPct.toDouble(),
+                      min: 1,
+                      max: 100,
+                      divisions: 99,
+                      onChanged: (v) =>
+                          service.setLaserPower(v.round(), apply: false),
+                      onChangeEnd: (v) => service.setLaserPower(v.round()),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 36,
+                child: Text(
+                  '${service.laserPowerPct}%',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700, color: color),
                 ),
               ),
             ],
