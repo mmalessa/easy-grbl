@@ -1,7 +1,7 @@
-import 'svg_document.dart';
-import 'focus_test_config.dart';
-import 'kerf_test_config.dart';
-import 'spot_test_config.dart';
+import '../../../models/svg_document.dart';
+import 'focus_test.dart';
+import 'kerf_test.dart';
+import 'spot_test.dart';
 
 /// Which template-test panel (if any) is active, bundled with the preview
 /// document it generated. Exactly one variant can be active at a time —

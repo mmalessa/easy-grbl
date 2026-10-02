@@ -1,5 +1,5 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/machine_settings.dart';
+import '../machines/machine_settings.dart';
 
 /// Persists [MachineSettings] to [SharedPreferences] as a flat set of
 /// `machine_<field>` keys, driven entirely by [MachineSettings.toMap] and

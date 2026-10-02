@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../machines/machine_mode.dart';
 
 typedef RecentFile = ({String path, String name});
 
@@ -13,6 +14,9 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   final bool isConnected;
   final bool isSerialConnected;
   final VoidCallback onToggleConnect;
+  final MachineType machineType;
+  // Null while a job is running or paused — the Mode items are disabled then.
+  final ValueChanged<MachineType>? onModeChanged;
   final VoidCallback onMachineSettings;
   final VoidCallback onAbout;
 
@@ -28,6 +32,8 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.isConnected,
     required this.isSerialConnected,
     required this.onToggleConnect,
+    required this.machineType,
+    required this.onModeChanged,
     required this.onMachineSettings,
     required this.onAbout,
   });
@@ -35,6 +41,7 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final profile = machineType.profile;
     return AppBar(
       toolbarHeight: 38,
       backgroundColor: cs.surfaceContainerHigh,
@@ -78,28 +85,33 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                   child: const Text('Export G-code…'),
                 ),
               ],
-              const Divider(height: 1),
-              SubmenuButton(
-                leadingIcon: const Icon(Icons.auto_fix_high_outlined, size: 16),
-                menuChildren: [
-                  MenuItemButton(
-                    onPressed: onFocusTest,
-                    leadingIcon: const Icon(Icons.my_location, size: 16),
-                    child: const Text('Focus Test'),
+              if (profile.supportsTemplates) ...[
+                const Divider(height: 1),
+                SubmenuButton(
+                  leadingIcon: const Icon(
+                    Icons.auto_fix_high_outlined,
+                    size: 16,
                   ),
-                  MenuItemButton(
-                    onPressed: onKerfTest,
-                    leadingIcon: const Icon(Icons.straighten, size: 16),
-                    child: const Text('Kerf Test'),
-                  ),
-                  MenuItemButton(
-                    onPressed: onSpotTest,
-                    leadingIcon: const Icon(Icons.grid_on, size: 16),
-                    child: const Text('Spot Size Test'),
-                  ),
-                ],
-                child: const Text('Templates'),
-              ),
+                  menuChildren: [
+                    MenuItemButton(
+                      onPressed: onFocusTest,
+                      leadingIcon: const Icon(Icons.my_location, size: 16),
+                      child: const Text('Focus Test'),
+                    ),
+                    MenuItemButton(
+                      onPressed: onKerfTest,
+                      leadingIcon: const Icon(Icons.straighten, size: 16),
+                      child: const Text('Kerf Test'),
+                    ),
+                    MenuItemButton(
+                      onPressed: onSpotTest,
+                      leadingIcon: const Icon(Icons.grid_on, size: 16),
+                      child: const Text('Spot Size Test'),
+                    ),
+                  ],
+                  child: const Text('Templates'),
+                ),
+              ],
             ],
             child: const Text('File'),
           ),
@@ -114,6 +126,24 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
                   size: 16,
                 ),
                 child: Text(isSerialConnected ? 'Disconnect' : 'Connect…'),
+              ),
+              SubmenuButton(
+                leadingIcon: Icon(profile.icon, size: 16),
+                menuChildren: MachineType.values
+                    .map((m) => MenuItemButton(
+                          onPressed: onModeChanged == null
+                              ? null
+                              : () => onModeChanged!(m),
+                          leadingIcon: Icon(
+                            m == machineType
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            size: 16,
+                          ),
+                          child: Text(m.profile.displayName),
+                        ))
+                    .toList(),
+                child: const Text('Mode'),
               ),
               const Divider(height: 1),
               MenuItemButton(
@@ -138,6 +168,10 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
+      actions: [
+        _ModeBadge(profile: profile),
+        const SizedBox(width: 10),
+      ],
     );
   }
 
@@ -148,4 +182,45 @@ class MainAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => const Size.fromHeight(38);
+}
+
+// ---------------------------------------------------------------------------
+
+/// Read-only indicator of the active working mode. The mode is changed only
+/// via Machine → Mode, so the badge has no click action.
+class _ModeBadge extends StatelessWidget {
+  final MachineModeProfile profile;
+
+  const _ModeBadge({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Tooltip(
+      message: 'Change in Machine → Mode',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          border: Border.all(color: cs.outlineVariant),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(profile.icon, size: 14, color: cs.onSurface),
+            const SizedBox(width: 6),
+            Text(
+              profile.badgeLabel,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
+                color: cs.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

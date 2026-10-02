@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'icon_stepper_button.dart';
+import '../../../../widgets/icon_stepper_button.dart';
 
 /// Shared chrome for the Focus/Kerf/Spot test panels: an icon+title header
 /// with a close button, a divider, and a scrollable body.

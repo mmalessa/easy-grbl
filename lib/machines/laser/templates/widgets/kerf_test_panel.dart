@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/kerf_test_config.dart';
+import '../kerf_test.dart';
 import 'test_panel_common.dart';
 
 class KerfTestPanel extends StatelessWidget {

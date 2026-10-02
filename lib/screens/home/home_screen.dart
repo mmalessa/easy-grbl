@@ -4,22 +4,21 @@ import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
 import '../../models/svg_document.dart';
 import '../../models/svg_node.dart';
-import '../../models/svg_node_type.dart';
 import '../../models/layer_settings.dart';
-import '../../models/operation_type.dart';
 import '../../services/svg_tree_parser.dart';
 import '../../services/grbl_service.dart';
 import '../../services/grbl_mock_service.dart';
 import '../../services/grbl_serial_service.dart';
 import '../../services/gcode_format.dart';
-import '../../services/gcode_generator.dart';
-import '../../services/gcode_templates.dart';
+import '../../machines/gcode/gcode_generator.dart';
+import '../../machines/laser/templates/laser_gcode_templates.dart';
 import '../../services/toolpath.dart';
-import '../../models/machine_settings.dart';
-import '../../models/focus_test_config.dart';
-import '../../models/kerf_test_config.dart';
-import '../../models/spot_test_config.dart';
-import '../../models/test_session.dart';
+import '../../machines/machine_settings.dart';
+import '../../machines/machine_mode.dart';
+import '../../machines/laser/templates/focus_test.dart';
+import '../../machines/laser/templates/kerf_test.dart';
+import '../../machines/laser/templates/spot_test.dart';
+import '../../machines/laser/templates/test_session.dart';
 import '../../services/settings_service.dart';
 import '../../widgets/connect_dialog.dart';
 import '../../widgets/machine_settings_dialog.dart';
@@ -75,10 +74,95 @@ class _HomeScreenState extends State<HomeScreen> {
     final result =
         await showMachineSettingsDialog(context, _machineSettings, _grbl);
     if (result != null) {
-      setState(() => _machineSettings = result);
+      setState(() {
+        _machineSettings = result;
+        if (_document != null) _toolpath = computeToolpath(_document!, result);
+      });
       _grbl.machineSettings = result;
       SettingsService.save(result);
     }
+  }
+
+  // ── Working mode ─────────────────────────────────────────────────
+
+  bool get _jobActive => _grbl.isJobActive;
+
+  Future<void> _onModeChanged(MachineType type) async {
+    if (type == _machineSettings.machineType || _jobActive) return;
+    if (_document != null) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Switch to ${type.profile.displayName}?'),
+          content: const Text(
+              'Layer settings will be interpreted for the new mode.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Switch'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted || _jobActive) return;
+    }
+    final updated = _machineSettings.copyWith(machineType: type);
+    setState(() {
+      _machineSettings = updated;
+      if (_document != null) _toolpath = computeToolpath(_document!, updated);
+      if (!type.profile.supportsTemplates) {
+        _testSession = const NoTestSession();
+      }
+    });
+    _grbl.machineSettings = updated;
+    SettingsService.save(updated);
+  }
+
+  /// Compares the connected device's GRBL $32 laser-mode flag with the app's
+  /// mode and offers to sync the device when they disagree. Never changes the
+  /// app's mode.
+  Future<void> _checkDeviceMode(GrblService grbl) async {
+    // Many GRBL boards reset when the serial port opens and ignore commands
+    // until they have booted.
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted || !identical(grbl, _grbl) || !grbl.connected || _jobActive) {
+      return;
+    }
+    final device = await grbl.queryMachineType();
+    final wanted = _machineSettings.machineType;
+    if (!mounted || device == null || device == wanted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(SnackBar(
+      duration: const Duration(seconds: 15),
+      content: Text(
+          'Device is configured as ${device.profile.displayName} '
+          '(\$32=${device == MachineType.laser ? 1 : 0}), '
+          'app is in ${wanted.profile.displayName} mode.'),
+      action: SnackBarAction(
+        label: 'Sync device',
+        onPressed: () async {
+          // The SnackBar outlives the state it was shown in: a job may have
+          // started, the connection changed, or the app mode been switched.
+          if (!mounted || !identical(grbl, _grbl) || !grbl.connected) return;
+          if (grbl.isJobActive) {
+            messenger.showSnackBar(const SnackBar(
+                content: Text('Cannot sync the device while a job is running')));
+            return;
+          }
+          final target = _machineSettings.machineType;
+          final ok = await grbl.setDeviceLaserMode(target == MachineType.laser);
+          messenger.showSnackBar(SnackBar(
+            content: Text(ok
+                ? 'Device set to ${target.profile.displayName}'
+                : 'Failed to update device configuration'),
+          ));
+        },
+      ),
+    ));
   }
 
   void _onAbout() {
@@ -110,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final result = await showConnectDialog(
       context,
-      initialBaud: _machineSettings.defaultBaudRate,
+      initialBaud: _machineSettings.common.defaultBaudRate,
     );
     if (result == null || !mounted) return;
 
@@ -118,6 +202,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_grbl is GrblMockService && _grbl.connected) return; // already connected
       if (_grbl is GrblMockService) {
         (_grbl as GrblMockService).connect(); // reconnect existing mock
+        _checkDeviceMode(_grbl);
         return;
       }
       final old = _grbl;
@@ -125,6 +210,7 @@ class _HomeScreenState extends State<HomeScreen> {
       mock.machineSettings = _machineSettings;
       setState(() => _grbl = mock);
       WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+      _checkDeviceMode(mock);
     } else {
       final serial = GrblSerialService();
       final ok = await serial.connectSerial(result.port!, result.baud);
@@ -134,6 +220,7 @@ class _HomeScreenState extends State<HomeScreen> {
         serial.machineSettings = _machineSettings;
         setState(() => _grbl = serial);
         WidgetsBinding.instance.addPostFrameCallback((_) => old.dispose());
+        _checkDeviceMode(serial);
       } else {
         serial.dispose();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -201,110 +288,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── Templates ────────────────────────────────────────────────────
 
-  SvgDocument _buildFocusTestDocument(FocusTestConfig cfg) {
-    final nodes = <SvgNode>[];
-    final half = ((cfg.lineCount - 1) / 2).floor();
-    for (var i = 0; i < cfg.lineCount; i++) {
-      final svgY = (cfg.lineCount - 1) - i;
-      final z = (i - half) * cfg.zStep;
-      nodes.add(SvgNode(
-        id: 'line_$i',
-        label: 'Z=${z.toStringAsFixed(1)}',
-        type: SvgNodeType.path,
-        pathData: 'M 0,$svgY L ${cfg.widthMm},$svgY',
-        settings: LayerSettings(
-          operationType: z == 0 ? OperationType.cut : OperationType.engrave,
-        ),
-      ));
-    }
-    final h = cfg.lineCount - 1.0;
-    return SvgDocument(
-      roots: nodes,
-      viewBox: Rect.fromLTWH(0, 0, cfg.widthMm, h),
-    );
-  }
-
   void _onFocusTest() {
     final cfg = FocusTestConfig(
-      powerPercent: _machineSettings.engravePower,
-      speedMmMin: _machineSettings.engraveSpeed,
+      powerPercent: _machineSettings.laser.engravePower,
+      speedMmMin: _machineSettings.laser.engraveSpeed,
     );
     setState(() =>
-        _testSession = FocusTestSession(cfg, _buildFocusTestDocument(cfg)));
+        _testSession = FocusTestSession(cfg, buildFocusTestDocument(cfg)));
   }
 
   void _onFocusTestChanged(FocusTestConfig cfg) {
     setState(() =>
-        _testSession = FocusTestSession(cfg, _buildFocusTestDocument(cfg)));
-  }
-
-  SvgDocument _buildKerfTestDocument(KerfTestConfig cfg) {
-    final powers = cfg.powerLevels;
-    final nodes = <SvgNode>[];
-    for (var i = 0; i < cfg.lineCount; i++) {
-      final svgY = (cfg.lineCount - 1 - i) * cfg.lineSpacing.toInt();
-      final pct = powers[i];
-      nodes.add(SvgNode(
-        id: 'line_$i',
-        label: '$pct% power',
-        type: SvgNodeType.path,
-        pathData: 'M 0,$svgY L ${cfg.widthMm},$svgY',
-        settings: LayerSettings(
-          operationType: OperationType.engrave,
-        ),
-      ));
-    }
-    final h = (cfg.lineCount - 1) * cfg.lineSpacing;
-    return SvgDocument(
-      roots: nodes,
-      viewBox: Rect.fromLTWH(0, 0, cfg.widthMm, h),
-    );
+        _testSession = FocusTestSession(cfg, buildFocusTestDocument(cfg)));
   }
 
   void _onKerfTest() {
     final cfg = KerfTestConfig(
-      maxPowerPercent: _machineSettings.engravePower,
-      speedMmMin: _machineSettings.engraveSpeed,
+      maxPowerPercent: _machineSettings.laser.engravePower,
+      speedMmMin: _machineSettings.laser.engraveSpeed,
     );
     setState(() =>
-        _testSession = KerfTestSession(cfg, _buildKerfTestDocument(cfg)));
+        _testSession = KerfTestSession(cfg, buildKerfTestDocument(cfg)));
   }
 
   void _onKerfTestChanged(KerfTestConfig cfg) {
     setState(() =>
-        _testSession = KerfTestSession(cfg, _buildKerfTestDocument(cfg)));
-  }
-
-  SvgDocument _buildSpotTestDocument(SpotTestConfig cfg) {
-    const labels = ['−0.1 mm', 'exact', '+0.1 mm'];
-    const bandH = 3.0;
-    const w = 9.0;
-    final h = bandH * 3;
-    final nodes = <SvgNode>[];
-    for (var i = 0; i < 3; i++) {
-      final svgY = (2 - i) * bandH;
-      nodes.add(SvgNode(
-        id: 'band_$i',
-        label: labels[i],
-        type: SvgNodeType.path,
-        pathData:
-            'M 0,$svgY L $w,$svgY L $w,${svgY + bandH} L 0,${svgY + bandH} Z',
-        settings: LayerSettings(operationType: OperationType.engrave),
-      ));
-    }
-    return SvgDocument(
-      roots: nodes,
-      viewBox: Rect.fromLTWH(0, 0, w, h),
-    );
+        _testSession = KerfTestSession(cfg, buildKerfTestDocument(cfg)));
   }
 
   void _onSpotTest() {
     final cfg = SpotTestConfig(
-      powerPercent: _machineSettings.engravePower,
-      speedMmMin: _machineSettings.engraveSpeed,
+      powerPercent: _machineSettings.laser.engravePower,
+      speedMmMin: _machineSettings.laser.engraveSpeed,
     );
     setState(() =>
-        _testSession = SpotTestSession(cfg, _buildSpotTestDocument(cfg)));
+        _testSession = SpotTestSession(cfg, buildSpotTestDocument()));
   }
 
   void _onSpotTestChanged(SpotTestConfig cfg) {
@@ -323,11 +341,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final gcode = switch (_testSession) {
       NoTestSession() => null,
       FocusTestSession(:final config) =>
-        GcodeTemplates.focusTest(config, _machineSettings),
+        LaserGcodeTemplates.focusTest(config, _machineSettings.laser),
       KerfTestSession(:final config) =>
-        GcodeTemplates.kerfTest(config, _machineSettings),
+        LaserGcodeTemplates.kerfTest(config, _machineSettings.laser),
       SpotTestSession(:final config) =>
-        GcodeTemplates.spotTest(config, _machineSettings),
+        LaserGcodeTemplates.spotTest(config, _machineSettings.laser),
     };
     if (gcode == null) return;
     final lines = stripGcodeComments(gcode);
@@ -427,6 +445,8 @@ class _HomeScreenState extends State<HomeScreen> {
             isConnected: _grbl.connected,
             isSerialConnected: _grbl is GrblSerialService && _grbl.connected,
             onToggleConnect: () => _openConnectDialog(),
+            machineType: _machineSettings.machineType,
+            onModeChanged: _jobActive ? null : _onModeChanged,
             onMachineSettings: _openMachineSettings,
             onAbout: _onAbout,
           ),
@@ -473,6 +493,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: RightPanel(
                         document: previewDocument,
                         service: _grbl,
+                        machineType: _machineSettings.machineType,
                         onToggleConnect: _openConnectDialog,
                         onStartJob: _testSession is NoTestSession
                             ? null

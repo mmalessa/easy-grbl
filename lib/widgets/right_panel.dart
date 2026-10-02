@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../machines/machine_mode.dart';
 import '../models/svg_document.dart';
 import '../services/grbl_service.dart';
 import 'code_panel.dart';
@@ -10,6 +11,7 @@ import 'panel_section_header.dart';
 class RightPanel extends StatelessWidget {
   final SvgDocument? document;
   final GrblService service;
+  final MachineType machineType;
   final VoidCallback? onToggleConnect;
   final VoidCallback? onStartJob;
   final VoidCallback? onExportGcode;
@@ -18,6 +20,7 @@ class RightPanel extends StatelessWidget {
     super.key,
     required this.document,
     required this.service,
+    required this.machineType,
     this.onToggleConnect,
     this.onStartJob,
     this.onExportGcode,
@@ -25,6 +28,7 @@ class RightPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final profile = machineType.profile;
     return Container(
       color: Theme.of(context).colorScheme.surface,
       child: Column(
@@ -32,8 +36,8 @@ class RightPanel extends StatelessWidget {
         children: [
           // ── Machine ──────────────────────────────────────────────────
           PanelSectionHeader(
-            title: 'Machine',
-            icon: Icons.settings_ethernet,
+            title: 'Machine · ${profile.displayName}',
+            icon: profile.icon,
           ),
           _MachinePanel(service: service, onToggleConnect: onToggleConnect),
 

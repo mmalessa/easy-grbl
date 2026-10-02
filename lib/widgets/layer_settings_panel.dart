@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../models/svg_node.dart';
 import '../models/svg_node_type.dart';
 import '../models/layer_settings.dart';
-import '../models/machine_settings.dart';
+import '../machines/gcode/gcode_strategy.dart';
+import '../machines/machine_settings.dart';
+import '../machines/machine_mode.dart';
 import '../models/operation_type.dart';
 import 'icon_stepper_button.dart';
 
@@ -82,11 +84,11 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
         cutDepthMm: _cutDepthMm,
       ));
 
-  double get _effectiveDiam =>
-      widget.machineSettings.effectiveDiameterAt(_cutDepthMm);
+  double get _effectiveDiam => GcodeStrategy.of(widget.machineSettings)
+      .effectiveDiameterAt(_cutDepthMm);
 
   double get _autoLinesPerMm {
-    final spot = widget.machineSettings.laserSpotSize;
+    final spot = widget.machineSettings.laser.laserSpotSize;
     return spot > 0 ? 1.0 / spot : 10.0;
   }
 
@@ -130,16 +132,16 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
               setState(() {
                 _opType = v;
                 final ms = widget.machineSettings;
-                final isMill = ms.machineType == MachineType.mill;
+                final profile = ms.machineType.profile;
                 if (v == OperationType.engrave) {
-                  _power = ms.engravePower.toDouble();
-                  _speed = isMill ? ms.engraveFeedRate : ms.engraveSpeed / 60.0;
+                  _power = ms.laser.engravePower.toDouble();
+                  _speed = profile.defaultSpeedMmS(v, ms);
                 } else if (v == OperationType.cut) {
-                  _power = ms.cutPower.toDouble();
-                  _speed = isMill ? ms.cutFeedRate : ms.cutSpeed / 60.0;
+                  _power = ms.laser.cutPower.toDouble();
+                  _speed = profile.defaultSpeedMmS(v, ms);
                 } else if (v == OperationType.fill) {
-                  _power = ms.fillPower.toDouble();
-                  _speed = isMill ? ms.fillFeedRate : ms.fillSpeed / 60.0;
+                  _power = ms.laser.fillPower.toDouble();
+                  _speed = profile.defaultSpeedMmS(v, ms);
                   _linesPerMm = _autoLinesPerMm;
                 }
               });
@@ -262,7 +264,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
             _OutlineCheckbox(
               value: _fillOutline,
               color: color,
-              spotSize: widget.machineSettings.laserSpotSize,
+              spotSize: widget.machineSettings.laser.laserSpotSize,
               onChanged: (v) {
                 setState(() => _fillOutline = v);
                 _emit();
@@ -283,7 +285,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
                 _emit();
               },
             ),
-            if (widget.machineSettings.machineType == MachineType.mill) ...[
+            if (widget.machineSettings.machineType.profile.showsCutDepth) ...[
               const SizedBox(height: 10),
               _label('Cut depth (mm)'),
               const SizedBox(height: 4),

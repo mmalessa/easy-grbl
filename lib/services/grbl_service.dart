@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../models/svg_document.dart';
-import '../models/machine_settings.dart';
+import '../machines/machine_settings.dart';
+import '../machines/machine_mode.dart';
 import '../models/machine_state.dart';
 import '../models/job_state.dart';
 import 'comm_log.dart';
@@ -55,6 +56,10 @@ abstract class GrblService extends ChangeNotifier {
   bool get isJobRunning => status == MachineStatus.run;
   bool get isMock => false;
   bool get isJobPaused;
+
+  /// A job is streaming or paused mid-stream — extra commands (e.g. `$$`)
+  /// would steal its acks.
+  bool get isJobActive => isJobRunning || isJobPaused;
 
   // ── Concrete helpers (shared by all implementations) ─────────────
 

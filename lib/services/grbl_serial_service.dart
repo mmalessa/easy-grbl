@@ -2,10 +2,10 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter_libserialport/flutter_libserialport.dart';
 import '../models/svg_document.dart';
-import '../models/machine_settings.dart';
+import '../machines/machine_mode.dart';
 import 'grbl_service.dart';
 import 'gcode_format.dart';
-import 'gcode_generator.dart';
+import '../machines/gcode/gcode_generator.dart';
 
 class GrblSerialService extends GrblService {
   SerialPort? _port;
@@ -112,7 +112,8 @@ class GrblSerialService extends GrblService {
   /// device's firmware is configured for laser mode.
   @override
   Future<MachineType?> queryMachineType() async {
-    if (_port == null || !_port!.isOpen) return null;
+    // `$$` mid-job would steal the streaming loop's acks.
+    if (_port == null || !_port!.isOpen || isJobActive) return null;
     _settingsBuffer = {};
     final completer = Completer<Map<String, String>>();
     _settingsCompleter = completer;
@@ -128,7 +129,7 @@ class GrblSerialService extends GrblService {
   /// Writes GRBL's $32 laser-mode setting on the device.
   @override
   Future<bool> setDeviceLaserMode(bool enabled) async {
-    if (_port == null || !_port!.isOpen) return false;
+    if (_port == null || !_port!.isOpen || isJobActive) return false;
     _sendRaw('\$32=${enabled ? 1 : 0}');
     return _waitAck();
   }

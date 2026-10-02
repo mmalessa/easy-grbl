@@ -3,11 +3,13 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/operation_type.dart';
 import '../models/layer_settings.dart';
-import '../models/machine_settings.dart';
-import 'affine.dart';
-import 'gcode_generator.dart';
-import 'path_offset.dart';
-import 'svg_node_walker.dart';
+import '../machines/gcode/gcode_strategy.dart';
+import '../machines/machine_settings.dart';
+import '../geometry/affine.dart';
+import '../geometry/contour_sampler.dart';
+import '../geometry/fill_lines.dart';
+import '../geometry/path_offset.dart';
+import '../geometry/svg_node_walker.dart';
 
 /// Pre-baked toolpath for canvas rendering. All coordinates are in SVG space.
 class ToolpathData {
@@ -48,15 +50,16 @@ ToolpathData? computeToolpath(SvgDocument doc,
     lastPos = svgPts.last;
   }
 
+  final strategy = GcodeStrategy.of(machineSettings);
   walkSvgNodes(doc.roots, (node, transform, effectiveOp, effectiveSettings) {
     if (!isActiveOp(node.pathData, effectiveOp)) return;
     final op = effectiveOp!;
     if (op == OperationType.fill) {
       _sampleFill(node.pathData!, transform, effectiveSettings,
-          machineSettings.laserSpotSize, addContour);
+          strategy.fillInset(effectiveSettings), addContour);
     } else {
       final offsetDelta = op == OperationType.cut
-          ? machineSettings.cutOffsetDeltaFor(effectiveSettings)
+          ? strategy.cutOffsetDelta(effectiveSettings)
           : 0.0;
       for (var pass = 0; pass < effectiveSettings.passes; pass++) {
         _samplePath(node.pathData!, transform, op.color, addContour,
@@ -83,28 +86,8 @@ void _samplePath(
   void Function(List<Offset>, Color) addContour, {
   double offsetDeltaMm = 0.0,
 }) {
-  final Path path;
-  try {
-    path = parseSvgPathData(pathData);
-  } catch (_) {
-    return;
-  }
-  for (final metric in path.computeMetrics()) {
-    if (metric.length < 0.001) continue;
-    var pts = <Offset>[];
-    for (var d = 0.0; d <= metric.length; d += _step) {
-      final t = metric.getTangentForOffset(d);
-      if (t != null) {
-        final tp = xform.apply(t.position);
-        if (pts.isEmpty || (tp - pts.last).distanceSquared > 0.04) pts.add(tp);
-      }
-    }
-    final endT = metric.getTangentForOffset(metric.length);
-    if (endT != null) {
-      final tp = xform.apply(endT.position);
-      if (pts.isEmpty || (tp - pts.last).distanceSquared > 0.04) pts.add(tp);
-    }
-    if (pts.length < 2) continue;
+  for (var pts in sampleContours(pathData,
+      step: _step, minDistSq: 0.04, map: xform.apply)) {
     if (offsetDeltaMm != 0) {
       pts = PathOffset.offsetClosedContour(pts, offsetDeltaMm);
     }
@@ -116,7 +99,7 @@ void _sampleFill(
   String pathData,
   SvgAffine xform,
   LayerSettings settings,
-  double spotSize,
+  double inset,
   void Function(List<Offset>, Color) addContour,
 ) {
   final Path rawPath;
@@ -127,9 +110,8 @@ void _sampleFill(
   }
   final path = rawPath.transform(xform.toFloat64());
   final color = OperationType.fill.color;
-  final inset = settings.fillOutline ? spotSize / 2 : 0.0;
 
-  final lines = GcodeGenerator.computeFillLines(
+  final lines = computeFillLines(
       path, settings.fillDirection, settings.linesPerMm, inset: inset);
 
   for (final line in lines) {

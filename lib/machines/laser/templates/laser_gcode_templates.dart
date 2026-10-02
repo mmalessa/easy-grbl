@@ -1,16 +1,16 @@
-import '../models/machine_settings.dart';
-import '../models/focus_test_config.dart';
-import '../models/kerf_test_config.dart';
-import '../models/spot_test_config.dart';
-import 'gcode_format.dart';
+import '../laser_settings.dart';
+import 'focus_test.dart';
+import 'kerf_test.dart';
+import 'spot_test.dart';
+import '../../../services/gcode_format.dart';
 
-class GcodeTemplates {
+class LaserGcodeTemplates {
   /// Focus Test — horizontal lines at varying Z heights.
   ///
   /// Middle line at Z=0. Lines above at Z+step … +Zmax,
   /// lines below at Z−step … −Zmax.
   /// The user inspects which line is sharpest to set correct focus.
-  static String focusTest(FocusTestConfig cfg, MachineSettings s) {
+  static String focusTest(FocusTestConfig cfg, LaserSettings s) {
     final buf = StringBuffer();
     final smax = s.sMax;
     final sVal =
@@ -56,7 +56,7 @@ class GcodeTemplates {
   ///
   /// Lines at increasing power percentages.
   /// The user measures the burn width to determine kerf vs. power.
-  static String kerfTest(KerfTestConfig cfg, MachineSettings s) {
+  static String kerfTest(KerfTestConfig cfg, LaserSettings s) {
     final buf = StringBuffer();
     final smax = s.sMax;
     final speed = cfg.speedMmMin;
@@ -106,7 +106,7 @@ class GcodeTemplates {
   ///   Middle: laserSpotSize (exact)
   ///   Top:    laserSpotSize + 0.1 mm
   /// The user inspects which band looks best-filled to verify the spot size.
-  static String spotTest(SpotTestConfig cfg, MachineSettings s) {
+  static String spotTest(SpotTestConfig cfg, LaserSettings s) {
     final buf = StringBuffer();
     final smax = s.sMax;
     final spotSize = s.laserSpotSize;

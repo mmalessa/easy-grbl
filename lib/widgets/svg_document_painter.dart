@@ -4,8 +4,8 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
-import '../services/svg_node_walker.dart';
-import '../services/svg_transform.dart';
+import '../geometry/svg_node_walker.dart';
+import '../geometry/svg_transform.dart';
 import '../services/toolpath.dart';
 
 class SvgDocumentPainter extends CustomPainter {

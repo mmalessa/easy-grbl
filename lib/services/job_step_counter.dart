@@ -1,5 +1,5 @@
 import '../models/svg_node.dart';
-import 'svg_node_walker.dart';
+import '../geometry/svg_node_walker.dart';
 
 /// Counts enabled non-skip paths/passes for the UI job summary. Pure domain
 /// logic over the SVG node tree — doesn't depend on any machine/service

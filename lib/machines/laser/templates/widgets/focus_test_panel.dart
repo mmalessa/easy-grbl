@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/focus_test_config.dart';
+import '../focus_test.dart';
 import 'test_panel_common.dart';
 
 class FocusTestPanel extends StatelessWidget {

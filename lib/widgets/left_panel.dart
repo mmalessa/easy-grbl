@@ -2,17 +2,17 @@ import 'package:flutter/material.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/layer_settings.dart';
-import '../models/machine_settings.dart';
-import '../models/focus_test_config.dart';
-import '../models/kerf_test_config.dart';
-import '../models/spot_test_config.dart';
-import '../models/test_session.dart';
+import '../machines/machine_settings.dart';
+import '../machines/laser/templates/focus_test.dart';
+import '../machines/laser/templates/kerf_test.dart';
+import '../machines/laser/templates/spot_test.dart';
+import '../machines/laser/templates/test_session.dart';
 import 'layers_panel.dart';
 import 'layer_settings_panel.dart';
 import 'panel_section_header.dart';
-import 'focus_test_panel.dart';
-import 'kerf_test_panel.dart';
-import 'spot_test_panel.dart';
+import '../machines/laser/templates/widgets/focus_test_panel.dart';
+import '../machines/laser/templates/widgets/kerf_test_panel.dart';
+import '../machines/laser/templates/widgets/spot_test_panel.dart';
 
 class LeftPanel extends StatefulWidget {
   final SvgDocument? document;
@@ -100,7 +100,7 @@ class _LeftPanelState extends State<LeftPanel> {
             SpotTestSession(:final config) => Expanded(
                 child: SpotTestPanel(
                   config: config,
-                  spotSize: widget.machineSettings.laserSpotSize,
+                  spotSize: widget.machineSettings.laser.laserSpotSize,
                   onChanged: widget.onSpotTestChanged,
                   onClose: widget.onCloseTest,
                 ),

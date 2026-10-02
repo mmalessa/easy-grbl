@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/spot_test_config.dart';
+import '../spot_test.dart';
 import 'test_panel_common.dart';
 
 class SpotTestPanel extends StatelessWidget {

@@ -5,14 +5,15 @@ import 'package:flutter/scheduler.dart';
 import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/layer_settings.dart';
-import '../models/machine_settings.dart';
+import '../machines/gcode/gcode_strategy.dart';
+import '../machines/machine_mode.dart';
 import '../models/operation_type.dart';
-import 'affine.dart';
+import '../geometry/affine.dart';
 import 'gcode_format.dart';
-import 'gcode_generator.dart';
+import '../geometry/fill_lines.dart';
 import 'grbl_service.dart';
-import 'path_offset.dart';
-import 'svg_node_walker.dart';
+import '../geometry/path_offset.dart';
+import '../geometry/svg_node_walker.dart';
 
 // label is empty for rapid-move steps (cursor jumps to path start without
 // updating the displayed label).
@@ -57,14 +58,14 @@ class GrblMockService extends GrblService {
 
   @override
   Future<MachineType?> queryMachineType() async {
-    if (!connected) return null;
+    if (!connected || isJobActive) return null;
     _mockDeviceType ??= machineSettings.machineType;
     return _mockDeviceType;
   }
 
   @override
   Future<bool> setDeviceLaserMode(bool enabled) async {
-    if (!connected) return false;
+    if (!connected || isJobActive) return false;
     _mockDeviceType = enabled ? MachineType.laser : MachineType.mill;
     return true;
   }
@@ -235,6 +236,7 @@ class GrblMockService extends GrblService {
 
   List<_Step> _collectSteps(SvgDocument doc) {
     final steps = <_Step>[];
+    final strategy = GcodeStrategy.of(machineSettings);
 
     walkSvgNodes(doc.roots, (n, m, eff, effSettings) {
       if (!isActiveOp(n.pathData, eff)) return;
@@ -242,10 +244,11 @@ class GrblMockService extends GrblService {
       final passes = effectivePassesFor(op, effSettings);
       for (var pass = 0; pass < passes; pass++) {
         final pts = op == OperationType.fill
-            ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings)
+            ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings,
+                strategy.fillInset(effSettings))
             : _samplePath(n.pathData!, m, doc.viewBox,
                 offsetDeltaMm: op == OperationType.cut
-                    ? machineSettings.cutOffsetDeltaFor(effSettings)
+                    ? strategy.cutOffsetDelta(effSettings)
                     : 0.0);
         if (pts.isEmpty) continue;
         final label = passes > 1
@@ -323,12 +326,12 @@ class GrblMockService extends GrblService {
     SvgAffine xform,
     Rect vb,
     LayerSettings settings,
+    double inset,
   ) {
     try {
       final rawPath = parseSvgPathData(pathData);
       final path = rawPath.transform(xform.toFloat64());
-      final inset = settings.fillOutline ? machineSettings.laserSpotSize / 2 : 0.0;
-      var lines = GcodeGenerator.computeFillLines(
+      var lines = computeFillLines(
           path, settings.fillDirection, settings.linesPerMm, inset: inset);
       if (lines.isEmpty) return [];
 
