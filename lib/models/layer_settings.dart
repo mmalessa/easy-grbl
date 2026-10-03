@@ -20,6 +20,10 @@ class LayerSettings {
   FillDirection fillDirection;
   double linesPerMm;
   bool fillOutline;
+
+  /// Fill everything in the work area *outside* this group's objects
+  /// instead of the objects themselves. Meaningful only on a group/layer.
+  bool fillNegative;
   CutSide cutSide;
   double cutDepthMm;
 
@@ -31,6 +35,7 @@ class LayerSettings {
     this.fillDirection = FillDirection.horizontal,
     this.linesPerMm = 10.0,
     this.fillOutline = true,
+    this.fillNegative = false,
     this.cutSide = CutSide.line,
     this.cutDepthMm = 1.0,
   });
@@ -43,6 +48,7 @@ class LayerSettings {
     FillDirection? fillDirection,
     double? linesPerMm,
     bool? fillOutline,
+    bool? fillNegative,
     CutSide? cutSide,
     double? cutDepthMm,
   }) =>
@@ -54,6 +60,7 @@ class LayerSettings {
         fillDirection: fillDirection ?? this.fillDirection,
         linesPerMm: linesPerMm ?? this.linesPerMm,
         fillOutline: fillOutline ?? this.fillOutline,
+        fillNegative: fillNegative ?? this.fillNegative,
         cutSide: cutSide ?? this.cutSide,
         cutDepthMm: cutDepthMm ?? this.cutDepthMm,
       );

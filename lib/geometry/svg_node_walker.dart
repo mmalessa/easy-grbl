@@ -93,6 +93,21 @@ void walkSvgNodes(List<SvgNode> roots, SvgNodeVisitor visit) {
 bool isActiveOp(String? pathData, OperationType? effectiveOp) =>
     pathData != null && effectiveOp != null && effectiveOp != OperationType.skip;
 
+/// True iff [node] is a group/layer set to a negative Fill: it burns one fill
+/// of the work area outside its objects (see negative_fill.dart).
+bool isNegativeFillGroup(SvgNode node) =>
+    node.isGroup &&
+    node.settings.operationType == OperationType.fill &&
+    node.settings.fillNegative;
+
+/// True iff [node] only inherits a negative Fill from an ancestor group:
+/// that group's single negative fill covers it, so it isn't filled on its own.
+bool isCoveredByNegativeFill(SvgNode node, OperationType? effectiveOp,
+        LayerSettings effectiveSettings) =>
+    effectiveOp == OperationType.fill &&
+    effectiveSettings.fillNegative &&
+    node.settings.operationType == OperationType.skip;
+
 /// Effective pass count for a node resolved to [effectiveOp]/[effectiveSettings]:
 /// Fill always burns once (a scanline fill doesn't repeat like a cut/engrave
 /// outline does), everything else uses the layer's configured pass count.

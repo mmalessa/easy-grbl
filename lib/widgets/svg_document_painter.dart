@@ -4,6 +4,7 @@ import 'package:path_drawing/path_drawing.dart';
 import '../models/svg_document.dart';
 import '../models/svg_node.dart';
 import '../models/operation_type.dart';
+import '../geometry/negative_fill.dart';
 import '../geometry/svg_node_walker.dart';
 import '../geometry/svg_transform.dart';
 import '../services/toolpath.dart';
@@ -67,8 +68,10 @@ class SvgDocumentPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5 / scale;
 
+    _paintNegativeFills(canvas);
+
     for (final node in document.roots) {
-      _paintNode(canvas, node, paint, true, null, false);
+      _paintNode(canvas, node, paint, true, null, false, false);
     }
 
     // Toolpath overlay (actual tool movement preview)
@@ -228,6 +231,23 @@ class SvgDocumentPainter extends CustomPainter {
     );
   }
 
+  /// Shades the work area outside the objects of every visible
+  /// negative-Fill group (the shapes themselves stay clear).
+  void _paintNegativeFills(Canvas canvas) {
+    final area = document.viewBox;
+    walkSvgNodes(document.roots, (node, transform, _, _) {
+      if (!isNegativeFillGroup(node)) return;
+      canvas.saveLayer(area, Paint());
+      canvas.drawRect(area,
+          Paint()..color = OperationType.fill.color.withValues(alpha: 0.18));
+      final clear = Paint()..blendMode = BlendMode.clear;
+      for (final p in negativeFillObstacles(node, transform)) {
+        canvas.drawPath(p, clear);
+      }
+      canvas.restore();
+    });
+  }
+
   void _paintNode(
     Canvas canvas,
     SvgNode node,
@@ -235,9 +255,14 @@ class SvgDocumentPainter extends CustomPainter {
     bool parentEnabled,
     OperationType? inheritedOp,
     bool inSelectedScope,
+    bool inNegativeFill,
   ) {
     final visible = parentEnabled && node.enabled;
     final selected = inSelectedScope || node.selected;
+    // Inherited until a node sets its own operation (cf. isCoveredByNegativeFill).
+    final negative = node.settings.operationType == OperationType.skip
+        ? inNegativeFill
+        : isNegativeFillGroup(node);
 
     // Resolve effective operation type (own overrides inherited) — shared
     // with the other SVG-tree walkers (see svg_node_walker.dart), though
@@ -256,7 +281,8 @@ class SvgDocumentPainter extends CustomPainter {
       try {
         final path = parseSvgPathData(node.pathData!);
         final sw = paint.strokeWidth;
-        final isFillOp = visible && effectiveOp == OperationType.fill;
+        final isFillOp =
+            visible && effectiveOp == OperationType.fill && !negative;
         if (isFillOp) {
           canvas.drawPath(
             path,
@@ -283,7 +309,8 @@ class SvgDocumentPainter extends CustomPainter {
     }
 
     for (final child in node.children) {
-      _paintNode(canvas, child, paint, visible, effectiveOp, selected);
+      _paintNode(
+          canvas, child, paint, visible, effectiveOp, selected, negative);
     }
 
     if (node.transform != null && node.transform!.isNotEmpty) canvas.restore();

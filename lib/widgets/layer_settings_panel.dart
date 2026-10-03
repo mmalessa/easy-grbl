@@ -33,6 +33,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
   late FillDirection _fillDirection;
   late double _linesPerMm;
   late bool _fillOutline;
+  late bool _fillNegative;
   late CutSide _cutSide;
   late TextEditingController _cutDepthCtrl;
 
@@ -64,6 +65,7 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
     _fillDirection = s.fillDirection;
     _linesPerMm = s.linesPerMm;
     _fillOutline = s.fillOutline;
+    _fillNegative = s.fillNegative;
     _cutSide = s.cutSide;
     _cutDepthCtrl.text = s.cutDepthMm.toStringAsFixed(2);
   }
@@ -81,12 +83,21 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
         fillDirection: _fillDirection,
         linesPerMm: _linesPerMm,
         fillOutline: _fillOutline,
+        fillNegative: _fillNegative && widget.node.isGroup,
         cutSide: _cutSide,
         cutDepthMm: _cutDepthMm,
       ));
 
   double get _effectiveDiam => GcodeStrategy.of(widget.machineSettings)
       .effectiveDiameterAt(_cutDepthMm);
+
+  String get _outlineHint {
+    final inset = (GcodeStrategy.of(widget.machineSettings).fillSpotDiameter / 2)
+        .toStringAsFixed(3);
+    return _fillNegative && widget.node.isGroup
+        ? 'keeps $inset mm (½ spot) away from the objects'
+        : 'runs $inset mm (½ spot) inside the edge';
+  }
 
   SpeedUnit get _speedUnit => widget.machineSettings.common.speedUnit;
 
@@ -282,11 +293,26 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
               },
             ),
             const SizedBox(height: 8),
-            _OutlineCheckbox(
+            if (widget.node.isGroup) ...[
+              _FillOptionCheckbox(
+                label: 'Negative',
+                hint: _fillNegative
+                    ? 'fills the work area outside this group\'s objects'
+                    : null,
+                value: _fillNegative,
+                color: color,
+                onChanged: (v) {
+                  setState(() => _fillNegative = v);
+                  _emit();
+                },
+              ),
+              const SizedBox(height: 2),
+            ],
+            _FillOptionCheckbox(
+              label: 'Outline',
+              hint: _fillOutline ? _outlineHint : null,
               value: _fillOutline,
               color: color,
-              spotSize:
-                  GcodeStrategy.of(widget.machineSettings).fillSpotDiameter,
               onChanged: (v) {
                 setState(() => _fillOutline = v);
                 _emit();
@@ -910,23 +936,25 @@ class _Counter extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
-class _OutlineCheckbox extends StatelessWidget {
+/// Fill option checkbox with a [label] and an optional italic [hint] below.
+class _FillOptionCheckbox extends StatelessWidget {
+  final String label;
+  final String? hint;
   final bool value;
   final Color color;
-  final double spotSize;
   final void Function(bool) onChanged;
 
-  const _OutlineCheckbox({
+  const _FillOptionCheckbox({
+    required this.label,
+    required this.hint,
     required this.value,
     required this.color,
-    required this.spotSize,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final inset = spotSize / 2;
     return InkWell(
       onTap: () => onChanged(!value),
       borderRadius: BorderRadius.circular(4),
@@ -951,16 +979,16 @@ class _OutlineCheckbox extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Outline',
+                    label,
                     style: TextStyle(
                       fontSize: 11,
                       color: value ? color : cs.onSurface,
                       fontWeight: value ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
-                  if (value)
+                  if (hint != null)
                     Text(
-                      'runs ${inset.toStringAsFixed(3)} mm (½ spot) inside the edge',
+                      hint!,
                       style: TextStyle(
                         fontSize: 9,
                         color: cs.onSurfaceVariant,

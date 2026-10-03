@@ -68,13 +68,71 @@ class PathOffset {
       ..addPaths(region, joinType: JoinType.round, endType: EndType.polygon);
     final result = offsetter.execute(delta: -deltaMm * _scale);
 
-    return [
-      for (final p in result)
-        if (p.length >= 3)
-          [
-            for (final q in p.scaledPathD(1 / _scale)) Offset(q.x, q.y),
-            Offset(p.first.x / _scale, p.first.y / _scale),
-          ],
-    ];
+    return _closedContours(result);
   }
+
+  /// The region a tool of radius [deltaMm] may run in while staying inside
+  /// [area] and never touching any of [objects]: [area] shrunk by [deltaMm]
+  /// minus every object grown by [deltaMm]. Each object is a list of
+  /// contours — closed ones bound its filled region (even-odd, like an SVG
+  /// fill), open ones are lines the tool keeps [deltaMm] away from. Every
+  /// returned contour is closed (first point repeated last); the list is
+  /// empty when no room is left.
+  static List<List<Offset>> regionAroundObjects(
+      Rect area, List<List<List<Offset>>> objects, double deltaMm) {
+    final delta = deltaMm * _scale;
+    final grown = <Path64>[];
+    for (final contours in objects) {
+      final closed = <Path64>[];
+      final open = <Path64>[];
+      for (final c in contours) {
+        if (isClosed(c)) {
+          closed.add(_toPath64(c));
+        } else if (c.length >= 2) {
+          open.add(_toPath64(c));
+        }
+      }
+      if (closed.isNotEmpty) {
+        final region =
+            Clipper.union(subject: closed, fillRule: FillRule.evenOdd);
+        grown.addAll((ClipperOffset()
+              ..addPaths(region,
+                  joinType: JoinType.round, endType: EndType.polygon))
+            .execute(delta: delta));
+      }
+      if (open.isNotEmpty) {
+        grown.addAll((ClipperOffset()
+              ..addPaths(open, joinType: JoinType.round, endType: EndType.round))
+            .execute(delta: delta));
+      }
+    }
+
+    final frame = (ClipperOffset()
+          ..addPath(
+              _toPath64([
+                area.topLeft, area.topRight, area.bottomRight, area.bottomLeft,
+              ]),
+              joinType: JoinType.miter,
+              endType: EndType.polygon))
+        .execute(delta: -delta);
+    if (frame.isEmpty) return const [];
+
+    // Offset outputs share one orientation convention (outers vs. holes), so
+    // non-zero treats overlapping grown objects as one solid obstacle.
+    return _closedContours(Clipper.difference(
+        subject: frame, clip: grown, fillRule: FillRule.nonZero));
+  }
+
+  static Path64 _toPath64(List<Offset> pts) =>
+      PathDExt.from([for (final p in pts) ...[p.dx, p.dy]])
+          .scaledPath64(_scale);
+
+  static List<List<Offset>> _closedContours(Paths64 paths) => [
+        for (final p in paths)
+          if (p.length >= 3)
+            [
+              for (final q in p.scaledPathD(1 / _scale)) Offset(q.x, q.y),
+              Offset(p.first.x / _scale, p.first.y / _scale),
+            ],
+      ];
 }

@@ -3,6 +3,7 @@ import 'package:path_drawing/path_drawing.dart';
 import '../../geometry/affine.dart';
 import '../../geometry/contour_sampler.dart';
 import '../../geometry/fill_toolpath.dart';
+import '../../geometry/negative_fill.dart';
 import '../../geometry/path_offset.dart';
 import '../../geometry/svg_node_walker.dart';
 import '../../models/layer_settings.dart';
@@ -66,9 +67,14 @@ class GcodeGenerator {
     SpeedUnit speedUnit,
     StringBuffer buf,
   ) {
-    if (!isActiveOp(node.pathData, effectiveOp)) return;
-    final op = effectiveOp!;
-    final s = effectiveSettings;
+    final negative = isNegativeFillGroup(node);
+    if (!negative &&
+        (!isActiveOp(node.pathData, effectiveOp) ||
+            isCoveredByNegativeFill(node, effectiveOp, effectiveSettings))) {
+      return;
+    }
+    final op = negative ? OperationType.fill : effectiveOp!;
+    final s = negative ? node.settings : effectiveSettings;
 
     final feedRateMmMin = (s.speedMmS * 60).round(); // mm/s -> mm/min for F
     final sMax = strategy.sMax;
@@ -77,15 +83,24 @@ class GcodeGenerator {
 
     if (op == OperationType.fill) {
       buf.writeln(
-        '; --- ${node.label} [Fill]'
+        '; --- ${node.label} [${negative ? 'Fill negative' : 'Fill'}]'
         '  power:${s.powerPercent}%  speed:$speed'
         '  lines/mm:${s.linesPerMm.toStringAsFixed(1)}'
         '  dir:${s.fillDirection.name}'
         '  inset:${(strategy.fillSpotDiameter / 2).toStringAsFixed(3)}mm'
         '${s.fillOutline ? '  outline:yes' : ''} ---',
       );
-      _fillToGcode(node.pathData!, transform, vb, sPower, feedRateMmMin, s,
-          strategy, buf);
+      final fill = negative
+          ? computeNegativeFillToolpath(
+              vb, negativeFillObstacles(node, transform),
+              direction: s.fillDirection,
+              linesPerMm: s.linesPerMm,
+              spotDiameter: strategy.fillSpotDiameter,
+              outline: s.fillOutline)
+          : _computeFill(node.pathData!, transform, s, strategy);
+      if (fill != null) {
+        _fillToGcode(fill, vb, sPower, feedRateMmMin, strategy, buf);
+      }
     } else {
       final isCut = op == OperationType.cut;
       final offsetDelta = isCut ? strategy.cutOffsetDelta(s) : 0.0;
@@ -166,29 +181,35 @@ class GcodeGenerator {
 
   // ── Fill (scanline hatch + optional outline) ───────────────────────────────
 
-  static void _fillToGcode(
+  /// Fill toolpath of one path in SVG space, or null if it doesn't parse.
+  static FillToolpath? _computeFill(
     String pathData,
     SvgAffine xform,
-    Rect vb,
-    int sPower,
-    int feedRate,
     LayerSettings s,
     GcodeStrategy strategy,
-    StringBuffer buf,
   ) {
     final Path rawPath;
     try {
       rawPath = parseSvgPathData(pathData);
     } catch (_) {
-      return;
+      return null;
     }
-
-    // Compute in SVG space, then flip Y for the G-code coordinate system.
-    final fill = computeFillToolpath(rawPath.transform(xform.toFloat64()),
+    return computeFillToolpath(rawPath.transform(xform.toFloat64()),
         direction: s.fillDirection,
         linesPerMm: s.linesPerMm,
         spotDiameter: strategy.fillSpotDiameter,
         outline: s.fillOutline);
+  }
+
+  /// Emits [fill] (SVG space), flipping Y for the G-code coordinate system.
+  static void _fillToGcode(
+    FillToolpath fill,
+    Rect vb,
+    int sPower,
+    int feedRate,
+    GcodeStrategy strategy,
+    StringBuffer buf,
+  ) {
     Offset toMachine(Offset p) => Offset(p.dx - vb.left, vb.bottom - p.dy);
 
     int? lastF;

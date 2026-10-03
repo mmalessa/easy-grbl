@@ -57,3 +57,36 @@ SvgDocument sampleDocument() {
     ],
   );
 }
+
+/// A negative-Fill group (with a child that has its own Cut) beside a plain
+/// Fill path; small work area and coarse hatch keep the golden short.
+SvgDocument negativeFillDocument() => SvgDocument(
+      viewBox: const Rect.fromLTWH(0, 0, 30, 20),
+      roots: [
+        SvgNode(
+          id: 'negative',
+          label: 'Negative',
+          type: SvgNodeType.group,
+          transform: 'translate(2,0)',
+          settings: LayerSettings(
+              operationType: OperationType.fill,
+              linesPerMm: 1,
+              fillNegative: true),
+          children: [
+            SvgNode(
+              id: 'square',
+              label: 'Square',
+              type: SvgNodeType.path,
+              pathData: 'M 4,4 L 12,4 L 12,12 L 4,12 Z',
+            ),
+            SvgNode(
+              id: 'cut_circle',
+              label: 'Cut circle',
+              type: SvgNodeType.circle,
+              pathData: 'M 22,10 A 3,3 0 1 1 16,10 A 3,3 0 1 1 22,10 Z',
+              settings: LayerSettings(operationType: OperationType.cut),
+            ),
+          ],
+        ),
+      ],
+    );

@@ -8,6 +8,7 @@ import '../machines/machine_settings.dart';
 import '../geometry/affine.dart';
 import '../geometry/contour_sampler.dart';
 import '../geometry/fill_toolpath.dart';
+import '../geometry/negative_fill.dart';
 import '../geometry/path_offset.dart';
 import '../geometry/svg_node_walker.dart';
 
@@ -52,7 +53,22 @@ ToolpathData? computeToolpath(SvgDocument doc,
 
   final strategy = GcodeStrategy.of(machineSettings);
   walkSvgNodes(doc.roots, (node, transform, effectiveOp, effectiveSettings) {
-    if (!isActiveOp(node.pathData, effectiveOp)) return;
+    if (isNegativeFillGroup(node)) {
+      final s = node.settings;
+      _addFill(
+          computeNegativeFillToolpath(
+              vb, negativeFillObstacles(node, transform),
+              direction: s.fillDirection,
+              linesPerMm: s.linesPerMm,
+              spotDiameter: strategy.fillSpotDiameter,
+              outline: s.fillOutline),
+          addContour);
+      return;
+    }
+    if (!isActiveOp(node.pathData, effectiveOp) ||
+        isCoveredByNegativeFill(node, effectiveOp, effectiveSettings)) {
+      return;
+    }
     final op = effectiveOp!;
     if (op == OperationType.fill) {
       _sampleFill(node.pathData!, transform, effectiveSettings,
@@ -108,13 +124,20 @@ void _sampleFill(
   } catch (_) {
     return;
   }
-  final color = OperationType.fill.color;
-  final fill = computeFillToolpath(rawPath.transform(xform.toFloat64()),
-      direction: settings.fillDirection,
-      linesPerMm: settings.linesPerMm,
-      spotDiameter: spotDiameter,
-      outline: settings.fillOutline);
+  _addFill(
+      computeFillToolpath(rawPath.transform(xform.toFloat64()),
+          direction: settings.fillDirection,
+          linesPerMm: settings.linesPerMm,
+          spotDiameter: spotDiameter,
+          outline: settings.fillOutline),
+      addContour);
+}
 
+void _addFill(
+  FillToolpath fill,
+  void Function(List<Offset>, Color) addContour,
+) {
+  final color = OperationType.fill.color;
   for (final line in fill.lines) {
     addContour([line.$1, line.$2], color);
   }

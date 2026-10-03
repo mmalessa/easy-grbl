@@ -70,6 +70,13 @@ void main() {
     });
   });
 
+  test('negative fill group', () {
+    _expectGolden(
+        'negative_fill.gcode',
+        GcodeGenerator.generate(
+            negativeFillDocument(), 'negative.svg', const MachineSettings()));
+  });
+
   group('laser templates', () {
     test('focus', () {
       _expectGolden('focus_test.gcode',

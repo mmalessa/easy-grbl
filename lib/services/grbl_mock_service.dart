@@ -11,6 +11,7 @@ import '../models/operation_type.dart';
 import '../geometry/affine.dart';
 import 'gcode_format.dart';
 import '../geometry/fill_toolpath.dart';
+import '../geometry/negative_fill.dart';
 import 'grbl_service.dart';
 import '../geometry/path_offset.dart';
 import '../geometry/svg_node_walker.dart';
@@ -245,14 +246,28 @@ class GrblMockService extends GrblService {
     final strategy = GcodeStrategy.of(machineSettings);
 
     walkSvgNodes(doc.roots, (n, m, eff, effSettings) {
-      if (!isActiveOp(n.pathData, eff)) return;
-      final op = eff!;
+      final negative = isNegativeFillGroup(n);
+      if (!negative &&
+          (!isActiveOp(n.pathData, eff) ||
+              isCoveredByNegativeFill(n, eff, effSettings))) {
+        return;
+      }
+      final op = negative ? OperationType.fill : eff!;
       final passes = effectivePassesFor(op, effSettings);
       for (var pass = 0; pass < passes; pass++) {
-        final fill = op == OperationType.fill
-            ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings,
-                strategy.fillSpotDiameter)
-            : null;
+        final fill = negative
+            ? _subsampleFill(
+                computeNegativeFillToolpath(
+                    doc.viewBox, negativeFillObstacles(n, m),
+                    direction: n.settings.fillDirection,
+                    linesPerMm: n.settings.linesPerMm,
+                    spotDiameter: strategy.fillSpotDiameter,
+                    outline: n.settings.fillOutline),
+                doc.viewBox)
+            : op == OperationType.fill
+                ? _sampleFill(n.pathData!, m, doc.viewBox, effSettings,
+                    strategy.fillSpotDiameter)
+                : null;
         final pts = fill != null
             ? fill.lines
             : _samplePath(n.pathData!, m, doc.viewBox,
@@ -337,45 +352,50 @@ class GrblMockService extends GrblService {
     LayerSettings settings,
     double spotDiameter,
   ) {
-    const empty = (lines: <Offset>[], outline: <List<Offset>>[]);
     try {
       final rawPath = parseSvgPathData(pathData);
-      final fill = computeFillToolpath(rawPath.transform(xform.toFloat64()),
-          direction: settings.fillDirection,
-          linesPerMm: settings.linesPerMm,
-          spotDiameter: spotDiameter,
-          outline: settings.fillOutline);
-      Offset toMachine(Offset p) => Offset(p.dx - vb.left, vb.bottom - p.dy);
-
-      final outline = [
-        for (final c in fill.outline)
-          [
-            for (var i = 0; i < c.length; i += math.max(1, c.length ~/ 20))
-              toMachine(c[i]),
-            toMachine(c.last),
-          ],
-      ];
-
-      var lines = fill.lines;
-      if (lines.isEmpty) return (lines: <Offset>[], outline: outline);
-
-      const maxLines = 60;
-      if (lines.length > maxLines) {
-        final stride = lines.length / maxLines;
-        lines = [
-          for (var i = 0.0; i < lines.length; i += stride) lines[i.toInt()]
-        ];
-      }
-
-      final pts = <Offset>[];
-      for (final line in lines) {
-        pts.add(toMachine(line.$1));
-        pts.add(toMachine(line.$2));
-      }
-      return (lines: pts, outline: outline);
+      return _subsampleFill(
+          computeFillToolpath(rawPath.transform(xform.toFloat64()),
+              direction: settings.fillDirection,
+              linesPerMm: settings.linesPerMm,
+              spotDiameter: spotDiameter,
+              outline: settings.fillOutline),
+          vb);
     } catch (_) {
-      return empty;
+      return (lines: <Offset>[], outline: <List<Offset>>[]);
     }
+  }
+
+  ({List<Offset> lines, List<List<Offset>> outline}) _subsampleFill(
+      FillToolpath fill, Rect vb) {
+    Offset toMachine(Offset p) => Offset(p.dx - vb.left, vb.bottom - p.dy);
+
+    final outline = [
+      for (final c in fill.outline)
+        [
+          for (var i = 0; i < c.length; i += math.max(1, c.length ~/ 20))
+            toMachine(c[i]),
+          toMachine(c.last),
+        ],
+    ];
+
+    var lines = fill.lines;
+    if (lines.isEmpty) return (lines: <Offset>[], outline: outline);
+
+    const maxLines = 60;
+    if (lines.length > maxLines) {
+      final stride = lines.length / maxLines;
+      lines = [
+        for (var i = 0.0; i < lines.length; i += stride) lines[i.toInt()]
+      ];
+    }
+
+    final pts = <Offset>[];
+    for (final line in lines) {
+      pts.add(toMachine(line.$1));
+      pts.add(toMachine(line.$2));
+    }
+    return (lines: pts, outline: outline);
   }
 
   double _round(double v) => (v * 1000).roundToDouble() / 1000;
