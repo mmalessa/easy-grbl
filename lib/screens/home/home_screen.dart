@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_selector/file_selector.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import '../../models/svg_document.dart';
 import '../../models/svg_node.dart';
 import '../../models/layer_settings.dart';
@@ -165,11 +166,14 @@ class _HomeScreenState extends State<HomeScreen> {
     ));
   }
 
-  void _onAbout() {
+  Future<void> _onAbout() async {
+    // PackageInfo.version is pubspec's version without the "+build" suffix.
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
     showAboutDialog(
       context: context,
       applicationName: 'EasyGRBL',
-      applicationVersion: 'build 2026-05-14',
+      applicationVersion: 'version ${info.version}',
       applicationIcon: const Icon(Icons.lightbulb_outline, size: 48),
       children: [
         const SizedBox(height: 8),
