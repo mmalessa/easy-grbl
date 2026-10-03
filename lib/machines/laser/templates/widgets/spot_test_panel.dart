@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../spot_test.dart';
+import '../../../../models/speed_unit.dart';
 import 'test_panel_common.dart';
 
 class SpotTestPanel extends StatelessWidget {
@@ -7,6 +8,7 @@ class SpotTestPanel extends StatelessWidget {
   final double spotSize;
   final ValueChanged<SpotTestConfig> onChanged;
   final VoidCallback onClose;
+  final SpeedUnit speedUnit;
 
   const SpotTestPanel({
     super.key,
@@ -14,6 +16,7 @@ class SpotTestPanel extends StatelessWidget {
     required this.spotSize,
     required this.onChanged,
     required this.onClose,
+    required this.speedUnit,
   });
 
   @override
@@ -31,10 +34,11 @@ class SpotTestPanel extends StatelessWidget {
           onChanged: (v) => onChanged(config.copyWith(powerPercent: v)),
         ),
         const SizedBox(height: 12),
-        const TestPanelLabel('Speed (mm/min)'),
+        TestPanelLabel('Speed (${speedUnit.label})'),
         const SizedBox(height: 4),
         TestPanelSpeedStepper(
           value: config.speedMmMin,
+          unit: speedUnit,
           onChanged: (v) => onChanged(config.copyWith(speedMmMin: v)),
         ),
         const SizedBox(height: 16),

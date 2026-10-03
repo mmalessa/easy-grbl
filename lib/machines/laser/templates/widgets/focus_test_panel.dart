@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
 import '../focus_test.dart';
+import '../../../../models/speed_unit.dart';
 import 'test_panel_common.dart';
 
 class FocusTestPanel extends StatelessWidget {
   final FocusTestConfig config;
   final ValueChanged<FocusTestConfig> onChanged;
   final VoidCallback onClose;
+  final SpeedUnit speedUnit;
 
   const FocusTestPanel({
     super.key,
     required this.config,
     required this.onChanged,
     required this.onClose,
+    required this.speedUnit,
   });
 
   @override
@@ -28,10 +31,11 @@ class FocusTestPanel extends StatelessWidget {
           onChanged: (v) => onChanged(config.copyWith(powerPercent: v)),
         ),
         const SizedBox(height: 12),
-        const TestPanelLabel('Speed (mm/min)'),
+        TestPanelLabel('Speed (${speedUnit.label})'),
         const SizedBox(height: 4),
         TestPanelSpeedStepper(
           value: config.speedMmMin,
+          unit: speedUnit,
           onChanged: (v) => onChanged(config.copyWith(speedMmMin: v)),
         ),
         const SizedBox(height: 16),

@@ -341,11 +341,14 @@ class _HomeScreenState extends State<HomeScreen> {
     final gcode = switch (_testSession) {
       NoTestSession() => null,
       FocusTestSession(:final config) =>
-        LaserGcodeTemplates.focusTest(config, _machineSettings.laser),
+        LaserGcodeTemplates.focusTest(config, _machineSettings.laser,
+            speedUnit: _machineSettings.common.speedUnit),
       KerfTestSession(:final config) =>
-        LaserGcodeTemplates.kerfTest(config, _machineSettings.laser),
+        LaserGcodeTemplates.kerfTest(config, _machineSettings.laser,
+            speedUnit: _machineSettings.common.speedUnit),
       SpotTestSession(:final config) =>
-        LaserGcodeTemplates.spotTest(config, _machineSettings.laser),
+        LaserGcodeTemplates.spotTest(config, _machineSettings.laser,
+            speedUnit: _machineSettings.common.speedUnit),
     };
     if (gcode == null) return;
     final lines = stripGcodeComments(gcode);

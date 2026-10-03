@@ -6,6 +6,7 @@ import '../machines/gcode/gcode_strategy.dart';
 import '../machines/machine_settings.dart';
 import '../machines/machine_mode.dart';
 import '../models/operation_type.dart';
+import '../models/speed_unit.dart';
 import 'icon_stepper_button.dart';
 
 class LayerSettingsPanel extends StatefulWidget {
@@ -86,6 +87,8 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
 
   double get _effectiveDiam => GcodeStrategy.of(widget.machineSettings)
       .effectiveDiameterAt(_cutDepthMm);
+
+  SpeedUnit get _speedUnit => widget.machineSettings.common.speedUnit;
 
   double get _autoLinesPerMm {
     final spot = widget.machineSettings.laser.laserSpotSize;
@@ -208,10 +211,11 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
           const SizedBox(height: 8),
 
           // Speed
-          _label('Speed (mm/s)'),
+          _label('Speed (${_speedUnit.label})'),
           const SizedBox(height: 4),
           _SpeedCounter(
             value: _speed,
+            unit: _speedUnit,
             color: color,
             onChanged: (v) {
               setState(() => _speed = v);
@@ -679,46 +683,52 @@ class _LinesPerMmCounter extends StatelessWidget {
 
 // ---------------------------------------------------------------------------
 
+/// Speed stepper; [value] and [onChanged] are in mm/s, the field shows and
+/// accepts [unit].
 class _SpeedCounter extends StatelessWidget {
   final double value;
+  final SpeedUnit unit;
   final Color color;
   final void Function(double) onChanged;
 
   const _SpeedCounter({
     required this.value,
+    required this.unit,
     required this.color,
     required this.onChanged,
   });
 
-  static const double _step = 1.0;
-  static const double _min = 0.1;
-  static const double _max = 500.0;
+  static const double _minMmS = 0.1;
+  static const double _maxMmS = 500.0;
 
   @override
   Widget build(BuildContext context) {
+    final perSec = unit == SpeedUnit.mmPerSec;
+    final shown = unit.fromMmS(value);
+    final step = perSec ? 1.0 : 100.0;
+    final min = unit.fromMmS(_minMmS);
+    final max = unit.fromMmS(_maxMmS);
+    void emit(double v) => onChanged(unit.toMmS(v.clamp(min, max)));
     return Row(
       children: [
         IconStepperButton(
             icon: Icons.remove,
-            onTap: value > _min
-                ? () => onChanged((value - _step).clamp(_min, _max))
-                : null,
+            onTap: value > _minMmS ? () => emit(shown - step) : null,
             color: color),
         Expanded(
           child: _NumberField(
-            value: value,
-            min: _min,
-            max: _max,
+            value: shown,
+            min: min,
+            max: max,
+            integer: !perSec,
             color: color,
-            format: (v) => v.toStringAsFixed(1),
-            onChanged: onChanged,
+            format: unit.format,
+            onChanged: (v) => onChanged(unit.toMmS(v)),
           ),
         ),
         IconStepperButton(
             icon: Icons.add,
-            onTap: value < _max
-                ? () => onChanged((value + _step).clamp(_min, _max))
-                : null,
+            onTap: value < _maxMmS ? () => emit(shown + step) : null,
             color: color),
       ],
     );
@@ -771,9 +781,12 @@ class _NumberFieldState extends State<_NumberField> {
   @override
   void didUpdateWidget(_NumberField old) {
     super.didUpdateWidget(old);
-    // Sync external changes (stepper buttons, op-type defaults, node switch)
-    // without clobbering text that already parses to the same value.
-    if (_parsed != widget.value) _ctrl.text = widget.format(widget.value);
+    // Sync external changes (stepper buttons, op-type defaults, node switch,
+    // unit switch) without clobbering text that already shows the same value.
+    final parsed = _parsed;
+    if (parsed == null || widget.format(parsed) != widget.format(widget.value)) {
+      _ctrl.text = widget.format(widget.value);
+    }
   }
 
   @override

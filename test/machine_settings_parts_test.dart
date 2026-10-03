@@ -17,7 +17,8 @@ void main() {
       'safeHeight', 'travelFeedRate', 'engraveSpindleSpeed', 'engraveFeedRate',
       'cutSpindleSpeed', 'cutFeedRate', 'fillSpindleSpeed', 'fillFeedRate',
     });
-    expect(const CommonSettings().toMap().keys.toSet(), {'defaultBaudRate'});
+    expect(const CommonSettings().toMap().keys.toSet(),
+        {'defaultBaudRate', 'speedUnit'});
   });
 
   test('copyWith replaces only the given part', () {

@@ -1,41 +1,42 @@
 import 'package:flutter/material.dart';
 import '../../../models/operation_type.dart';
+import '../../../models/speed_unit.dart';
 import '../../../widgets/settings_form_fields.dart';
 import '../mill_settings.dart';
 
 /// Editable state of the mill part of Machine Settings. Notifies on every
 /// change so the dialog can re-validate.
 class MillSettingsForm extends ChangeNotifier {
-  MillSettingsForm(MillSettings s)
+  MillSettingsForm(MillSettings s, [SpeedUnit unit = SpeedUnit.mmPerSec])
       : maxSpindleSpeedCtrl = TextEditingController(text: '${s.maxSpindleSpeed}'),
-        maxFeedRateCtrl = TextEditingController(text: s.maxFeedRate.toStringAsFixed(1)),
+        maxFeedRateCtrl = SpeedTextController(s.maxFeedRate, unit),
         toolDiamCtrl = TextEditingController(text: s.toolDiameter.toStringAsFixed(3)),
         bladeAngleCtrl = TextEditingController(text: s.bladeAngle.toStringAsFixed(1)),
         safeHeightCtrl = TextEditingController(text: s.safeHeight.toStringAsFixed(1)),
-        travelFeedRateCtrl = TextEditingController(text: s.travelFeedRate.toStringAsFixed(1)),
+        travelFeedRateCtrl = SpeedTextController(s.travelFeedRate, unit),
         engraveSpindleCtrl = TextEditingController(text: '${s.engraveSpindleSpeed}'),
-        engraveFeedCtrl = TextEditingController(text: s.engraveFeedRate.toStringAsFixed(1)),
+        engraveFeedCtrl = SpeedTextController(s.engraveFeedRate, unit),
         cutSpindleCtrl = TextEditingController(text: '${s.cutSpindleSpeed}'),
-        cutFeedCtrl = TextEditingController(text: s.cutFeedRate.toStringAsFixed(1)),
+        cutFeedCtrl = SpeedTextController(s.cutFeedRate, unit),
         fillSpindleCtrl = TextEditingController(text: '${s.fillSpindleSpeed}'),
-        fillFeedCtrl = TextEditingController(text: s.fillFeedRate.toStringAsFixed(1)) {
+        fillFeedCtrl = SpeedTextController(s.fillFeedRate, unit) {
     for (final c in _controllers) {
       c.addListener(notifyListeners);
     }
   }
 
   final TextEditingController maxSpindleSpeedCtrl;
-  final TextEditingController maxFeedRateCtrl;
+  final SpeedTextController maxFeedRateCtrl;
   final TextEditingController toolDiamCtrl;
   final TextEditingController bladeAngleCtrl;
   final TextEditingController safeHeightCtrl;
-  final TextEditingController travelFeedRateCtrl;
+  final SpeedTextController travelFeedRateCtrl;
   final TextEditingController engraveSpindleCtrl;
-  final TextEditingController engraveFeedCtrl;
+  final SpeedTextController engraveFeedCtrl;
   final TextEditingController cutSpindleCtrl;
-  final TextEditingController cutFeedCtrl;
+  final SpeedTextController cutFeedCtrl;
   final TextEditingController fillSpindleCtrl;
-  final TextEditingController fillFeedCtrl;
+  final SpeedTextController fillFeedCtrl;
 
   List<TextEditingController> get _controllers => [
         maxSpindleSpeedCtrl, maxFeedRateCtrl, toolDiamCtrl, bladeAngleCtrl,
@@ -43,34 +44,46 @@ class MillSettingsForm extends ChangeNotifier {
         cutSpindleCtrl, cutFeedCtrl, fillSpindleCtrl, fillFeedCtrl,
       ];
 
+  List<SpeedTextController> get _speedCtrls => [
+        maxFeedRateCtrl, travelFeedRateCtrl, engraveFeedCtrl, cutFeedCtrl,
+        fillFeedCtrl,
+      ];
+
+  SpeedUnit get speedUnit => maxFeedRateCtrl.unit;
+  set speedUnit(SpeedUnit u) {
+    for (final c in _speedCtrls) {
+      c.unit = u;
+    }
+  }
+
   bool get isValid =>
       parsePositiveInt(maxSpindleSpeedCtrl) != null &&
-      parsePositiveDouble(maxFeedRateCtrl) != null &&
+      maxFeedRateCtrl.mmS != null &&
       parsePositiveDouble(toolDiamCtrl) != null &&
       parsePositiveDouble(bladeAngleCtrl) != null &&
       parsePositiveDouble(safeHeightCtrl) != null &&
-      parsePositiveDouble(travelFeedRateCtrl) != null &&
+      travelFeedRateCtrl.mmS != null &&
       parsePositiveInt(cutSpindleCtrl) != null &&
-      parsePositiveDouble(cutFeedCtrl) != null &&
+      cutFeedCtrl.mmS != null &&
       parsePositiveInt(fillSpindleCtrl) != null &&
-      parsePositiveDouble(fillFeedCtrl) != null &&
+      fillFeedCtrl.mmS != null &&
       parsePositiveInt(engraveSpindleCtrl) != null &&
-      parsePositiveDouble(engraveFeedCtrl) != null;
+      engraveFeedCtrl.mmS != null;
 
   /// Clamp bounds and fallbacks copied 1:1 from the original dialog.
   MillSettings result(MillSettings f) => MillSettings(
         maxSpindleSpeed: (parsePositiveInt(maxSpindleSpeedCtrl) ?? f.maxSpindleSpeed).clamp(1, 1000000),
-        maxFeedRate: (parsePositiveDouble(maxFeedRateCtrl) ?? f.maxFeedRate).clamp(0.1, 100000.0),
+        maxFeedRate: (maxFeedRateCtrl.mmS ?? f.maxFeedRate).clamp(0.1, 100000.0),
         toolDiameter: (parsePositiveDouble(toolDiamCtrl) ?? f.toolDiameter).clamp(0.1, 100.0),
         bladeAngle: (parsePositiveDouble(bladeAngleCtrl) ?? f.bladeAngle).clamp(1.0, 180.0),
         safeHeight: (parsePositiveDouble(safeHeightCtrl) ?? f.safeHeight).clamp(0.1, 500.0),
-        travelFeedRate: (parsePositiveDouble(travelFeedRateCtrl) ?? f.travelFeedRate).clamp(1.0, 100000.0),
+        travelFeedRate: (travelFeedRateCtrl.mmS ?? f.travelFeedRate).clamp(1.0, 100000.0),
         engraveSpindleSpeed: (parsePositiveInt(engraveSpindleCtrl) ?? f.engraveSpindleSpeed).clamp(1, 1000000),
-        engraveFeedRate: (parsePositiveDouble(engraveFeedCtrl) ?? f.engraveFeedRate).clamp(0.1, 10000.0),
+        engraveFeedRate: (engraveFeedCtrl.mmS ?? f.engraveFeedRate).clamp(0.1, 10000.0),
         cutSpindleSpeed: (parsePositiveInt(cutSpindleCtrl) ?? f.cutSpindleSpeed).clamp(1, 1000000),
-        cutFeedRate: (parsePositiveDouble(cutFeedCtrl) ?? f.cutFeedRate).clamp(0.1, 10000.0),
+        cutFeedRate: (cutFeedCtrl.mmS ?? f.cutFeedRate).clamp(0.1, 10000.0),
         fillSpindleSpeed: (parsePositiveInt(fillSpindleCtrl) ?? f.fillSpindleSpeed).clamp(1, 1000000),
-        fillFeedRate: (parsePositiveDouble(fillFeedCtrl) ?? f.fillFeedRate).clamp(0.1, 10000.0),
+        fillFeedRate: (fillFeedCtrl.mmS ?? f.fillFeedRate).clamp(0.1, 10000.0),
       );
 
   @override
@@ -101,8 +114,8 @@ class MillSettingsSection extends StatelessWidget {
             isValid: parsePositiveInt(form.maxSpindleSpeedCtrl) != null),
         const SizedBox(height: 14),
         numericSettingRow('Max feed rate', form.maxFeedRateCtrl,
-            cs: cs, width: 80, decimal: true, unit: 'mm/s',
-            isValid: parsePositiveDouble(form.maxFeedRateCtrl) != null),
+            cs: cs, width: 80, decimal: true, unit: form.speedUnit.label,
+            isValid: form.maxFeedRateCtrl.mmS != null),
         const SizedBox(height: 14),
         numericSettingRow('Tool diameter', form.toolDiamCtrl,
             cs: cs, width: 72, decimal: true, unit: 'mm',
@@ -120,9 +133,9 @@ class MillSettingsSection extends StatelessWidget {
             isValid: parsePositiveDouble(form.safeHeightCtrl) != null),
         const SizedBox(height: 14),
         numericSettingRow('Travel feed rate', form.travelFeedRateCtrl,
-            cs: cs, width: 72, decimal: true, unit: 'mm/s',
+            cs: cs, width: 72, decimal: true, unit: form.speedUnit.label,
             hint: 'Speed for non-cutting moves (retract / travel / plunge)',
-            isValid: parsePositiveDouble(form.travelFeedRateCtrl) != null),
+            isValid: form.travelFeedRateCtrl.mmS != null),
         const SizedBox(height: 20),
         settingsSectionHeader('DEFAULTS', cs),
         settingsGroupBox(cs, [
@@ -137,11 +150,11 @@ class MillSettingsSection extends StatelessWidget {
   }
 
   Widget _millDefaultRow(OperationType type,
-      TextEditingController spindleCtrl, TextEditingController feedCtrl,
+      TextEditingController spindleCtrl, SpeedTextController feedCtrl,
       ColorScheme cs) {
     final color = type.color;
     final spindleOk = parsePositiveInt(spindleCtrl) != null;
-    final feedOk = parsePositiveDouble(feedCtrl) != null;
+    final feedOk = feedCtrl.mmS != null;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -177,21 +190,16 @@ class MillSettingsSection extends StatelessWidget {
               color: color,
               valid: feedOk,
               width: 52,
-              decimal: true,
+              decimal: feedCtrl.unit == SpeedUnit.mmPerSec,
               cs: cs,
-              unit: 'mm/s',
-              onDecrement: () {
-                final v =
-                    double.tryParse(feedCtrl.text.replaceAll(',', '.')) ?? 5.0;
-                feedCtrl.text =
-                    ((v - 5.0).clamp(0.1, 10000.0)).toStringAsFixed(1);
-              },
-              onIncrement: () {
-                final v =
-                    double.tryParse(feedCtrl.text.replaceAll(',', '.')) ?? 5.0;
-                feedCtrl.text =
-                    ((v + 5.0).clamp(0.1, 10000.0)).toStringAsFixed(1);
-              },
+              unit: feedCtrl.unit.label,
+              // One step is 5 mm/s or 300 mm/min, depending on the unit.
+              onDecrement: () => feedCtrl.nudge(
+                  feedCtrl.unit == SpeedUnit.mmPerSec ? -5.0 : -300.0,
+                  0.1, 10000.0),
+              onIncrement: () => feedCtrl.nudge(
+                  feedCtrl.unit == SpeedUnit.mmPerSec ? 5.0 : 300.0,
+                  0.1, 10000.0),
             ),
           ],
         ),

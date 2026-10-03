@@ -55,4 +55,19 @@ void main() {
     final result = await _openAndSave(tester, MachineSettings.fromMap(map));
     expect(result!.toMap(), map);
   });
+
+  // mm/s display rounds laser speeds (e.g. 2500 mm/min → "41.7"); saving
+  // unedited fields must still keep the exact stored values.
+  for (final type in ['laser', 'mill']) {
+    testWidgets('Save without edits keeps every value ($type, mm/s)',
+        (tester) async {
+      final map = {
+        ...customSettingsMap,
+        'machineType': type,
+        'speedUnit': 'mmPerSec',
+      };
+      final result = await _openAndSave(tester, MachineSettings.fromMap(map));
+      expect(result!.toMap(), map);
+    });
+  }
 }

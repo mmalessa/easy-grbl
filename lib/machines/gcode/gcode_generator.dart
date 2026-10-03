@@ -7,6 +7,7 @@ import '../../geometry/path_offset.dart';
 import '../../geometry/svg_node_walker.dart';
 import '../../models/layer_settings.dart';
 import '../../models/operation_type.dart';
+import '../../models/speed_unit.dart';
 import '../../models/svg_document.dart';
 import '../../models/svg_node.dart';
 import '../../services/gcode_format.dart';
@@ -42,7 +43,8 @@ class GcodeGenerator {
       ..writeln();
 
     walkSvgNodes(doc.roots, (node, transform, effectiveOp, effectiveSettings) {
-      _writeNode(node, transform, vb, effectiveOp, effectiveSettings, strategy, buf);
+      _writeNode(node, transform, vb, effectiveOp, effectiveSettings, strategy,
+          settings.common.speedUnit, buf);
     });
 
     buf.writeln();
@@ -61,6 +63,7 @@ class GcodeGenerator {
     OperationType? effectiveOp,
     LayerSettings effectiveSettings,
     GcodeStrategy strategy,
+    SpeedUnit speedUnit,
     StringBuffer buf,
   ) {
     if (!isActiveOp(node.pathData, effectiveOp)) return;
@@ -70,11 +73,12 @@ class GcodeGenerator {
     final feedRateMmMin = (s.speedMmS * 60).round(); // mm/s -> mm/min for F
     final sMax = strategy.sMax;
     final sPower = (s.powerPercent / 100.0 * sMax).round().clamp(0, sMax);
+    final speed = '${speedUnit.format(speedUnit.fromMmS(s.speedMmS))} ${speedUnit.label}';
 
     if (op == OperationType.fill) {
       buf.writeln(
         '; --- ${node.label} [Fill]'
-        '  power:${s.powerPercent}%  speed:${s.speedMmS.toStringAsFixed(1)} mm/s'
+        '  power:${s.powerPercent}%  speed:$speed'
         '  lines/mm:${s.linesPerMm.toStringAsFixed(1)}'
         '  dir:${s.fillDirection.name}'
         '  inset:${(strategy.fillSpotDiameter / 2).toStringAsFixed(3)}mm'
@@ -89,7 +93,7 @@ class GcodeGenerator {
 
       buf.writeln(
         '; --- ${node.label} [${op.label}]'
-        '  power:${s.powerPercent}%  speed:${s.speedMmS.toStringAsFixed(1)} mm/s'
+        '  power:${s.powerPercent}%  speed:$speed'
         '  passes:${s.passes}'
         '${offsetDelta != 0 ? '  side:${s.cutSide.name} offset:${offsetDelta.toStringAsFixed(3)}mm' : ''}'
         '${plungeZ != null ? '  Z:-${plungeZ.toStringAsFixed(3)}mm' : ''} ---',

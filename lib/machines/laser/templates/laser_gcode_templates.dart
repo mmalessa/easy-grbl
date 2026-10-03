@@ -2,15 +2,21 @@ import '../laser_settings.dart';
 import 'focus_test.dart';
 import 'kerf_test.dart';
 import 'spot_test.dart';
+import '../../../models/speed_unit.dart';
 import '../../../services/gcode_format.dart';
 
 class LaserGcodeTemplates {
+  /// Header comment for a mm/min speed, shown in [unit].
+  static String _speed(int mmMin, SpeedUnit unit) =>
+      '${unit.format(unit.fromMmS(mmMin / 60.0))} ${unit.label}';
+
   /// Focus Test — horizontal lines at varying Z heights.
   ///
   /// Middle line at Z=0. Lines above at Z+step … +Zmax,
   /// lines below at Z−step … −Zmax.
   /// The user inspects which line is sharpest to set correct focus.
-  static String focusTest(FocusTestConfig cfg, LaserSettings s) {
+  static String focusTest(FocusTestConfig cfg, LaserSettings s,
+      {SpeedUnit speedUnit = SpeedUnit.mmPerMin}) {
     final buf = StringBuffer();
     final smax = s.sMax;
     final sVal =
@@ -23,7 +29,7 @@ class LaserGcodeTemplates {
       ..writeln('; Spacing: ${cfg.lineSpacing.toStringAsFixed(1)} mm')
       ..writeln('; Z step: ${cfg.zStep.toStringAsFixed(2)} mm')
       ..writeln('; Power: ${cfg.powerPercent}%  (S$sVal / S$smax)')
-      ..writeln('; Speed: ${cfg.speedMmMin} mm/min')
+      ..writeln('; Speed: ${_speed(cfg.speedMmMin, speedUnit)}')
       ..writeln()
       ..writeln('G21 ; metric')
       ..writeln('G90 ; absolute')
@@ -56,7 +62,8 @@ class LaserGcodeTemplates {
   ///
   /// Lines at increasing power percentages.
   /// The user measures the burn width to determine kerf vs. power.
-  static String kerfTest(KerfTestConfig cfg, LaserSettings s) {
+  static String kerfTest(KerfTestConfig cfg, LaserSettings s,
+      {SpeedUnit speedUnit = SpeedUnit.mmPerMin}) {
     final buf = StringBuffer();
     final smax = s.sMax;
     final speed = cfg.speedMmMin;
@@ -68,7 +75,7 @@ class LaserGcodeTemplates {
       ..writeln('; ${cfg.lineCount} horizontal lines × ${cfg.widthMm.toStringAsFixed(0)} mm long')
       ..writeln('; Spacing: ${cfg.lineSpacing.toStringAsFixed(0)} mm')
       ..writeln('; Power ramp: ${powers.join("%, ")}%  (max $maxPct%)')
-      ..writeln('; Speed: $speed mm/min')
+      ..writeln('; Speed: ${_speed(speed, speedUnit)}')
       ..writeln()
       ..writeln('G21 ; metric')
       ..writeln('G90 ; absolute')
@@ -106,7 +113,8 @@ class LaserGcodeTemplates {
   ///   Middle: laserSpotSize (exact)
   ///   Top:    laserSpotSize + 0.1 mm
   /// The user inspects which band looks best-filled to verify the spot size.
-  static String spotTest(SpotTestConfig cfg, LaserSettings s) {
+  static String spotTest(SpotTestConfig cfg, LaserSettings s,
+      {SpeedUnit speedUnit = SpeedUnit.mmPerMin}) {
     final buf = StringBuffer();
     final smax = s.sMax;
     final spotSize = s.laserSpotSize;
@@ -126,7 +134,7 @@ class LaserGcodeTemplates {
       ..writeln('; 9 × 9 mm square, 3 horizontal bands')
       ..writeln('; Laser spot: ${spotSize.toStringAsFixed(2)} mm')
       ..writeln('; Power: ${cfg.powerPercent}%  (S$sVal / S$smax)')
-      ..writeln('; Speed: ${cfg.speedMmMin} mm/min')
+      ..writeln('; Speed: ${_speed(cfg.speedMmMin, speedUnit)}')
       ..writeln()
       ..writeln('G21 ; metric')
       ..writeln('G90 ; absolute')

@@ -88,6 +88,7 @@ class _LeftPanelState extends State<LeftPanel> {
                   config: config,
                   onChanged: widget.onFocusTestChanged,
                   onClose: widget.onCloseTest,
+                  speedUnit: widget.machineSettings.common.speedUnit,
                 ),
               ),
             KerfTestSession(:final config) => Expanded(
@@ -95,6 +96,7 @@ class _LeftPanelState extends State<LeftPanel> {
                   config: config,
                   onChanged: widget.onKerfTestChanged,
                   onClose: widget.onCloseTest,
+                  speedUnit: widget.machineSettings.common.speedUnit,
                 ),
               ),
             SpotTestSession(:final config) => Expanded(
@@ -103,6 +105,7 @@ class _LeftPanelState extends State<LeftPanel> {
                   spotSize: widget.machineSettings.laser.laserSpotSize,
                   onChanged: widget.onSpotTestChanged,
                   onClose: widget.onCloseTest,
+                  speedUnit: widget.machineSettings.common.speedUnit,
                 ),
               ),
             NoTestSession() => Expanded(

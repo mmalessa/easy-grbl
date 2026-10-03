@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../../models/speed_unit.dart';
 import '../../../../widgets/icon_stepper_button.dart';
 
 /// Shared chrome for the Focus/Kerf/Spot test panels: an icon+title header
@@ -160,16 +161,26 @@ class TestPanelPowerSlider extends StatelessWidget {
   }
 }
 
-/// mm/min speed +/- stepper, clamped to [100, 30000].
+/// Speed +/- stepper; [value] and [onChanged] are in mm/min, clamped to
+/// [100, 30000], and the value is shown in [unit]. One step is 100 mm/min
+/// or 1 mm/s.
 class TestPanelSpeedStepper extends StatelessWidget {
   final int value;
+  final SpeedUnit unit;
   final ValueChanged<int> onChanged;
 
   const TestPanelSpeedStepper({
     super.key,
     required this.value,
+    required this.unit,
     required this.onChanged,
   });
+
+  int _stepped(int dir) {
+    if (unit == SpeedUnit.mmPerMin) return (value + dir * 100).clamp(100, 30000);
+    final mmS = (value / 60.0).roundToDouble() + dir;
+    return (mmS * 60).round().clamp(100, 30000);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -182,11 +193,11 @@ class TestPanelSpeedStepper extends StatelessWidget {
           width: 32,
           height: 28,
           iconSize: 14,
-          onTap: () => onChanged((value - 100).clamp(100, 30000)),
+          onTap: () => onChanged(_stepped(-1)),
         ),
         Expanded(
           child: Text(
-            '$value',
+            unit.format(unit.fromMmS(value / 60.0)),
             textAlign: TextAlign.center,
             style: TextStyle(
                 fontSize: 13, fontWeight: FontWeight.w600, color: cs.onSurface),
@@ -198,7 +209,7 @@ class TestPanelSpeedStepper extends StatelessWidget {
           width: 32,
           height: 28,
           iconSize: 14,
-          onTap: () => onChanged((value + 100).clamp(100, 30000)),
+          onTap: () => onChanged(_stepped(1)),
         ),
       ],
     );

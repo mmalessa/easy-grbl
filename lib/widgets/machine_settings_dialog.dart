@@ -4,6 +4,7 @@ import '../machines/laser/widgets/laser_settings_section.dart';
 import '../machines/machine_mode.dart';
 import '../machines/machine_settings.dart';
 import '../machines/mill/widgets/mill_settings_section.dart';
+import '../models/speed_unit.dart';
 import '../services/grbl_service.dart';
 import 'settings_form_fields.dart';
 
@@ -33,8 +34,11 @@ class _MachineSettingsDialog extends StatefulWidget {
 class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
   // The working mode is changed only via Machine → Mode, not in this dialog.
   late final MachineType _machineType = widget.current.machineType;
-  late final LaserSettingsForm _laserForm = LaserSettingsForm(widget.current.laser);
-  late final MillSettingsForm _millForm = MillSettingsForm(widget.current.mill);
+  late SpeedUnit _speedUnit = widget.current.common.speedUnit;
+  late final LaserSettingsForm _laserForm =
+      LaserSettingsForm(widget.current.laser, _speedUnit);
+  late final MillSettingsForm _millForm =
+      MillSettingsForm(widget.current.mill, _speedUnit);
   late int _baudRate = widget.current.common.defaultBaudRate;
 
   bool _queryingDevice = false;
@@ -69,7 +73,8 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
   // Both parts are rebuilt from their forms (as the original dialog did), so
   // the inactive mode's values round-trip through the same parse/clamp.
   MachineSettings _buildResult() => widget.current.copyWith(
-        common: CommonSettings(defaultBaudRate: _baudRate),
+        common: CommonSettings(
+            defaultBaudRate: _baudRate, speedUnit: _speedUnit),
         laser: _laserForm.result(widget.current.laser),
         mill: _millForm.result(widget.current.mill),
       );
@@ -99,6 +104,9 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
                   LaserSettingsSection(form: _laserForm)
                 else
                   MillSettingsSection(form: _millForm),
+                const SizedBox(height: 20),
+                settingsSectionHeader('UNITS', cs),
+                _speedUnitRow(cs),
                 const SizedBox(height: 20),
                 settingsSectionHeader('CONNECTION', cs),
                 _baudRateRow(cs),
@@ -176,6 +184,27 @@ class _MachineSettingsDialogState extends State<_MachineSettingsDialog> {
       ),
     );
   }
+
+  Widget _speedUnitRow(ColorScheme cs) => Row(
+        children: [
+          settingsFieldLabel('Speed', cs),
+          const Spacer(),
+          DropdownButton<SpeedUnit>(
+            value: _speedUnit,
+            dropdownColor: cs.surfaceContainerHigh,
+            style: TextStyle(color: cs.onSurface, fontSize: 13),
+            underline: const SizedBox(),
+            items: SpeedUnit.values
+                .map((u) => DropdownMenuItem(value: u, child: Text(u.label)))
+                .toList(),
+            onChanged: (v) => setState(() {
+              _speedUnit = v!;
+              _laserForm.speedUnit = v;
+              _millForm.speedUnit = v;
+            }),
+          ),
+        ],
+      );
 
   Widget _baudRateRow(ColorScheme cs) => Row(
         children: [

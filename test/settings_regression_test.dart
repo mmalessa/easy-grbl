@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:easy_grbl/machines/machine_settings.dart';
+import 'package:easy_grbl/models/speed_unit.dart';
 import 'package:easy_grbl/services/settings_service.dart';
 
 const _constructorDefaults = <String, Object>{
@@ -28,6 +29,7 @@ const _constructorDefaults = <String, Object>{
   'safeHeight': 5.0,
   'travelFeedRate': 25.0,
   'defaultBaudRate': 115200,
+  'speedUnit': 'mmPerSec',
 };
 
 final _firstRunDefaults = <String, Object>{
@@ -63,6 +65,7 @@ const customSettingsMap = <String, Object>{
   'safeHeight': 4.5,
   'travelFeedRate': 30.5,
   'defaultBaudRate': 250000,
+  'speedUnit': 'mmPerMin',
 };
 
 void main() {
@@ -94,5 +97,13 @@ void main() {
       for (final e in customSettingsMap.entries) 'machine_${e.key}': e.value,
     });
     expect((await SettingsService.load()).toMap(), customSettingsMap);
+  });
+
+  test('preferences without speedUnit default to mm/s', () async {
+    SharedPreferences.setMockInitialValues({
+      for (final e in customSettingsMap.entries)
+        if (e.key != 'speedUnit') 'machine_${e.key}': e.value,
+    });
+    expect((await SettingsService.load()).common.speedUnit, SpeedUnit.mmPerSec);
   });
 }

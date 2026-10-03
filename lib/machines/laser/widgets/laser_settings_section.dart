@@ -1,25 +1,27 @@
 import 'package:flutter/material.dart';
 import '../../../models/operation_type.dart';
+import '../../../models/speed_unit.dart';
 import '../../../widgets/settings_form_fields.dart';
 import '../laser_settings.dart';
 
+// Laser speeds are stored in mm/min.
 const _kSpeedMin = 100;
 const _kSpeedMax = 30000;
 
 /// Editable state of the laser part of Machine Settings. Notifies on every
 /// change so the dialog can re-validate.
 class LaserSettingsForm extends ChangeNotifier {
-  LaserSettingsForm(LaserSettings s)
+  LaserSettingsForm(LaserSettings s, [SpeedUnit unit = SpeedUnit.mmPerSec])
       : _laserMode = s.laserMode,
         sMaxCtrl = TextEditingController(text: '${s.sMax}'),
         spotCtrl =
             TextEditingController(text: s.laserSpotSize.toStringAsFixed(2)),
         _engravePower = s.engravePower.toDouble(),
-        engraveSpeedCtrl = TextEditingController(text: '${s.engraveSpeed}'),
+        engraveSpeedCtrl = SpeedTextController(s.engraveSpeed / 60.0, unit),
         _cutPower = s.cutPower.toDouble(),
-        cutSpeedCtrl = TextEditingController(text: '${s.cutSpeed}'),
+        cutSpeedCtrl = SpeedTextController(s.cutSpeed / 60.0, unit),
         _fillPower = s.fillPower.toDouble(),
-        fillSpeedCtrl = TextEditingController(text: '${s.fillSpeed}') {
+        fillSpeedCtrl = SpeedTextController(s.fillSpeed / 60.0, unit) {
     for (final c in _controllers) {
       c.addListener(notifyListeners);
     }
@@ -27,9 +29,9 @@ class LaserSettingsForm extends ChangeNotifier {
 
   final TextEditingController sMaxCtrl;
   final TextEditingController spotCtrl;
-  final TextEditingController engraveSpeedCtrl;
-  final TextEditingController cutSpeedCtrl;
-  final TextEditingController fillSpeedCtrl;
+  final SpeedTextController engraveSpeedCtrl;
+  final SpeedTextController cutSpeedCtrl;
+  final SpeedTextController fillSpeedCtrl;
   LaserMode _laserMode;
   double _engravePower;
   double _cutPower;
@@ -37,6 +39,16 @@ class LaserSettingsForm extends ChangeNotifier {
 
   List<TextEditingController> get _controllers =>
       [sMaxCtrl, spotCtrl, engraveSpeedCtrl, cutSpeedCtrl, fillSpeedCtrl];
+
+  List<SpeedTextController> get _speedCtrls =>
+      [engraveSpeedCtrl, cutSpeedCtrl, fillSpeedCtrl];
+
+  SpeedUnit get speedUnit => engraveSpeedCtrl.unit;
+  set speedUnit(SpeedUnit u) {
+    for (final c in _speedCtrls) {
+      c.unit = u;
+    }
+  }
 
   LaserMode get laserMode => _laserMode;
   set laserMode(LaserMode v) {
@@ -65,15 +77,18 @@ class LaserSettingsForm extends ChangeNotifier {
     notifyListeners();
   }
 
-  TextEditingController speedCtrlFor(OperationType op) => switch (op) {
+  SpeedTextController speedCtrlFor(OperationType op) => switch (op) {
         OperationType.engrave => engraveSpeedCtrl,
         OperationType.cut => cutSpeedCtrl,
         _ => fillSpeedCtrl,
       };
 
-  static int? parseSpeed(TextEditingController ctrl) {
-    final v = int.tryParse(ctrl.text.trim());
-    if (v == null || v < _kSpeedMin || v > _kSpeedMax) return null;
+  /// The field's value in mm/min, or null when invalid / out of range.
+  static int? parseSpeed(SpeedTextController ctrl) {
+    final mmS = ctrl.mmS;
+    if (mmS == null) return null;
+    final v = (mmS * 60).round();
+    if (v < _kSpeedMin || v > _kSpeedMax) return null;
     return v;
   }
 
@@ -242,22 +257,22 @@ class LaserSettingsSection extends StatelessWidget {
               color: color,
               valid: valid,
               width: 56,
-              decimal: false,
+              decimal: speedCtrl.unit == SpeedUnit.mmPerSec,
               cs: cs,
-              onDecrement: () {
-                final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
-                speedCtrl.text =
-                    '${(v - 100).clamp(_kSpeedMin, _kSpeedMax)}';
-              },
-              onIncrement: () {
-                final v = int.tryParse(speedCtrl.text.trim()) ?? _kSpeedMin;
-                speedCtrl.text =
-                    '${(v + 100).clamp(_kSpeedMin, _kSpeedMax)}';
-              },
+              unit: speedCtrl.unit.label,
+              onDecrement: () => _nudgeSpeed(speedCtrl, -1),
+              onIncrement: () => _nudgeSpeed(speedCtrl, 1),
             ),
           ],
         ),
       ],
     );
   }
+
+  /// One step is 1 mm/s or 100 mm/min, depending on the display unit.
+  static void _nudgeSpeed(SpeedTextController ctrl, int dir) => ctrl.nudge(
+        dir * (ctrl.unit == SpeedUnit.mmPerSec ? 1.0 : 100.0),
+        _kSpeedMin / 60.0,
+        _kSpeedMax / 60.0,
+      );
 }
