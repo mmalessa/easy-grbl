@@ -154,8 +154,25 @@ class _LayerSettingsPanelState extends State<LayerSettingsPanel> {
           Row(children: [
             _label('Power'),
             const Spacer(),
+            SizedBox(
+              width: 40,
+              child: _NumberField(
+                value: _power,
+                min: 0,
+                max: 100,
+                integer: true,
+                color: color,
+                textColor: color,
+                format: (v) => v.round().toString(),
+                onChanged: (v) {
+                  setState(() => _power = v);
+                  _emit();
+                },
+              ),
+            ),
+            const SizedBox(width: 3),
             Text(
-              '${_power.round()}%',
+              '%',
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -615,12 +632,15 @@ class _LinesPerMmCounter extends StatelessWidget {
                 : null,
             color: color),
         Expanded(
-          child: Text(
-            value == value.roundToDouble()
-                ? value.toInt().toString()
-                : value.toStringAsFixed(1),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          child: _NumberField(
+            value: value,
+            min: 0.5,
+            max: 100.0,
+            color: color,
+            format: (v) => v == v.roundToDouble()
+                ? v.toInt().toString()
+                : v.toStringAsFixed(1),
+            onChanged: onChanged,
           ),
         ),
         IconStepperButton(
@@ -685,10 +705,13 @@ class _SpeedCounter extends StatelessWidget {
                 : null,
             color: color),
         Expanded(
-          child: Text(
-            value.toStringAsFixed(1),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          child: _NumberField(
+            value: value,
+            min: _min,
+            max: _max,
+            color: color,
+            format: (v) => v.toStringAsFixed(1),
+            onChanged: onChanged,
           ),
         ),
         IconStepperButton(
@@ -698,6 +721,125 @@ class _SpeedCounter extends StatelessWidget {
                 : null,
             color: color),
       ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+/// Compact numeric [TextField] for manual entry. Valid in-range input is
+/// reported live via [onChanged]; on submit or focus loss the text is clamped
+/// to [min]..[max] and reformatted (invalid text reverts to [value]).
+class _NumberField extends StatefulWidget {
+  final double value;
+  final double min;
+  final double max;
+  final bool integer;
+  final Color color;
+  final Color? textColor;
+  final String Function(double) format;
+  final void Function(double) onChanged;
+
+  const _NumberField({
+    required this.value,
+    required this.min,
+    required this.max,
+    required this.color,
+    required this.format,
+    required this.onChanged,
+    this.integer = false,
+    this.textColor,
+  });
+
+  @override
+  State<_NumberField> createState() => _NumberFieldState();
+}
+
+class _NumberFieldState extends State<_NumberField> {
+  late final TextEditingController _ctrl;
+  final _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.format(widget.value));
+    _focus.addListener(() {
+      if (!_focus.hasFocus) _commit();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_NumberField old) {
+    super.didUpdateWidget(old);
+    // Sync external changes (stepper buttons, op-type defaults, node switch)
+    // without clobbering text that already parses to the same value.
+    if (_parsed != widget.value) _ctrl.text = widget.format(widget.value);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  double? get _parsed {
+    final text = _ctrl.text.trim().replaceAll(',', '.');
+    if (widget.integer) return int.tryParse(text)?.toDouble();
+    return double.tryParse(text);
+  }
+
+  bool get _isValid {
+    final v = _parsed;
+    return v != null && v >= widget.min && v <= widget.max;
+  }
+
+  void _commit() {
+    final v = _parsed;
+    final next = v == null ? widget.value : v.clamp(widget.min, widget.max);
+    _ctrl.text = widget.format(next);
+    if (next != widget.value) widget.onChanged(next);
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final valid = _isValid;
+    OutlineInputBorder border(Color c) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(4),
+      borderSide: BorderSide(color: c),
+    );
+    return SizedBox(
+      height: 26,
+      child: TextField(
+        controller: _ctrl,
+        focusNode: _focus,
+        textAlign: TextAlign.center,
+        keyboardType: TextInputType.numberWithOptions(decimal: !widget.integer),
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: valid ? (widget.textColor ?? cs.onSurface) : cs.error,
+        ),
+        decoration: InputDecoration(
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 4,
+            vertical: 4,
+          ),
+          filled: true,
+          fillColor: cs.surfaceContainerLowest,
+          border: border(valid ? cs.outline : cs.error),
+          enabledBorder: border(valid ? cs.outline : cs.error),
+          focusedBorder: border(valid ? widget.color : cs.error),
+        ),
+        onChanged: (_) {
+          setState(() {});
+          if (_isValid) widget.onChanged(_parsed!);
+        },
+        onSubmitted: (_) => _commit(),
+      ),
     );
   }
 }
@@ -732,10 +874,14 @@ class _Counter extends StatelessWidget {
                 : null,
             color: accentColor),
         Expanded(
-          child: Text(
-            value.toString(),
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          child: _NumberField(
+            value: value.toDouble(),
+            min: min.toDouble(),
+            max: max.toDouble(),
+            integer: true,
+            color: accentColor,
+            format: (v) => v.round().toString(),
+            onChanged: (v) => onChanged(v.round()),
           ),
         ),
         IconStepperButton(
